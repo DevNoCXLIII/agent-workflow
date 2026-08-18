@@ -115,6 +115,40 @@ log_info "Refreshing Herdr integrations..."
 herdr integration install kilo 2>/dev/null || true
 herdr integration install antigravity-cli 2>/dev/null || true
 herdr integration install claude 2>/dev/null || true
+
+# Guard Kilo Herdr integration against Bun node:net double-free segfault
+KILO_PLUGIN="${HOME}/.config/kilo/plugin/herdr-agent-state.js"
+if [[ -f "$KILO_PLUGIN" ]]; then
+    node -e "
+    const fs = require('fs');
+    const p = '${KILO_PLUGIN}';
+    let code = fs.readFileSync(p, 'utf8');
+    if (!code.includes('let done = false;')) {
+        code = code.replace(/return new Promise\(\(resolve\) => \{[\s\S]*?client\.on\(\"close\", resolve\);[\s\S]*?\}\);/,
+\`return new Promise((resolve) => {
+    let done = false;
+    let client;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      try { if (client) client.destroy(); } catch (e) {}
+      resolve();
+    };
+    try {
+      client = net.createConnection(socketEndpoint, () => {
+        try { client.write(\\\`\\\${JSON.stringify(request)}\\\\n\\\`); } catch (e) { finish(); }
+      });
+      client.setTimeout(500, finish);
+      client.on(\"data\", finish);
+      client.on(\"error\", finish);
+      client.on(\"end\", finish);
+      client.on(\"close\", finish);
+    } catch (e) { resolve(); }
+  });\`);
+        fs.writeFileSync(p, code, 'utf8');
+    }
+    " 2>/dev/null || true
+fi
 log_success "Herdr integrations refreshed"
 
 if herdr config check >/dev/null 2>&1; then
