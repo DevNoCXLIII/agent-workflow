@@ -628,7 +628,7 @@ cmd_serve() {
     fi
 
     if [[ ! -f "$server_script" ]]; then
-        echo "Error: Web server script not found at ${REPO_ROOT}/web/server.js" >&2
+        echo "Error: Web server script not found at ${REPO_ROOT}/web/server.js or ~/.local/share/schwi/web/server.js" >&2
         return 1
     fi
 
@@ -636,6 +636,10 @@ cmd_serve() {
         echo "Error: Node.js runtime is required to run the Web UI controller." >&2
         return 1
     fi
+
+    local current_runner_bin
+    current_runner_bin="$(command -v schwi-runner 2>/dev/null || echo "${HOME}/.local/bin/schwi-runner")"
+    export SCHWI_RUNNER_BIN="${current_runner_bin}"
 
     exec node "$server_script" "$@"
 }

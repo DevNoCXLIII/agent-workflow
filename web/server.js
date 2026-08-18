@@ -20,7 +20,9 @@ const SCHWI_DIR = path.join(REPO_ROOT, '.schwi');
 const WORKTREES_DIR = path.join(REPO_ROOT, '.worktrees');
 const REGISTRY_FILE = path.join(SCHWI_DIR, 'registry.json');
 const CONFIG_FILE = path.join(SCHWI_DIR, 'config.json');
-const PUBLIC_DIR = path.join(__dirname, 'public');
+const PUBLIC_DIR = fs.existsSync(path.join(__dirname, 'public'))
+  ? path.join(__dirname, 'public')
+  : path.join(process.env.HOME || '', '.local', 'share', 'schwi', 'web', 'public');
 
 function initDirs() {
   if (!fs.existsSync(SCHWI_DIR)) fs.mkdirSync(SCHWI_DIR, { recursive: true });
@@ -105,10 +107,26 @@ function isIpAllowed(remoteIp) {
   return false;
 }
 
+function getSchwiRunnerBin() {
+  if (process.env.SCHWI_RUNNER_BIN && fs.existsSync(process.env.SCHWI_RUNNER_BIN)) {
+    return process.env.SCHWI_RUNNER_BIN;
+  }
+  const homeBin = path.join(process.env.HOME || '', '.local', 'bin', 'schwi-runner');
+  if (fs.existsSync(homeBin)) return homeBin;
+
+  const repoBin = path.join(REPO_ROOT, 'bin', 'schwi-runner');
+  if (fs.existsSync(repoBin)) return repoBin;
+
+  const parentBin = path.join(__dirname, '..', 'bin', 'schwi-runner');
+  if (fs.existsSync(parentBin)) return parentBin;
+
+  return 'schwi-runner';
+}
+
 // Subprocess runner helper
 function runSchwiRunner(args) {
   return new Promise((resolve, reject) => {
-    const binPath = path.join(REPO_ROOT, 'bin', 'schwi-runner');
+    const binPath = getSchwiRunnerBin();
     const proc = spawn(binPath, args, { cwd: REPO_ROOT, env: { ...process.env } });
     let stdout = '';
     let stderr = '';
@@ -120,6 +138,11 @@ function runSchwiRunner(args) {
     proc.stderr.on('data', (d) => {
       stderr += d.toString();
       EVENT_BUS.emit('log', { timestamp: new Date().toISOString(), text: d.toString(), isErr: true });
+    });
+
+    proc.on('error', (err) => {
+      console.error(`[Process Error] Failed to spawn ${binPath}:`, err.message);
+      reject(new Error(`Failed to execute '${binPath}': ${err.message}`));
     });
 
     proc.on('close', (code) => {
