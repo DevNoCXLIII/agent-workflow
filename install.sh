@@ -45,10 +45,61 @@ log_error() {
     echo -e "${RED}Error:${NC} $1" >&2
 }
 
+# Parse CLI flags
+FORCE_MODE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --vps)
+            FORCE_MODE="vps"; shift ;;
+        --local)
+            FORCE_MODE="local"; shift ;;
+        -y|--yes)
+            FORCE_MODE="default"; shift ;;
+        *)
+            shift ;;
+    esac
+done
+
 echo -e "${BLUE}====================================================${NC}"
 echo -e "${BLUE}   Installing /schwi Multi-Agent Swarm Workflow    ${NC}"
 echo -e "${BLUE}   Platform: ${OS} (${ARCH})                       ${NC}"
 echo -e "${BLUE}====================================================${NC}"
+
+# Interactive Environment Selection (VPS vs Local)
+IS_VPS_BOOL="true"
+if [[ "$FORCE_MODE" == "vps" ]]; then
+    IS_VPS_BOOL="true"
+    log_info "Mode selected via flag: VPS Mode"
+elif [[ "$FORCE_MODE" == "local" ]]; then
+    IS_VPS_BOOL="false"
+    log_info "Mode selected via flag: Local Mode"
+elif [[ -t 0 && "$FORCE_MODE" != "default" ]]; then
+    echo ""
+    echo -e "${BLUE}┌────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${BLUE}│           Deployment Environment Selection             │${NC}"
+    echo -e "${BLUE}└────────────────────────────────────────────────────────┘${NC}"
+    echo "  [1] VPS / Remote Server (Recommended for cloud instances)"
+    echo "      - Auto-pushes worker branches to remote Git repository"
+    echo "      - Provides 'Checkout feat/xxx and test' remote review prompts"
+    echo "      - Tailscale-isolated Web Dashboard"
+    echo ""
+    echo "  [2] Local Machine (Laptop / Desktop workstation)"
+    echo "      - Local branch inspections and local merges"
+    echo "      - No automatic remote git pushes"
+    echo ""
+    read -rp "Select environment [1=VPS, 2=Local] (Default: 1): " env_choice
+    case "$env_choice" in
+        2|local|Local|L|l)
+            IS_VPS_BOOL="false"
+            log_success "Configured for Local Mode"
+            ;;
+        *)
+            IS_VPS_BOOL="true"
+            log_success "Configured for VPS Mode"
+            ;;
+    esac
+    echo ""
+fi
 
 # 1. Check prerequisites
 log_info "Verifying required dependencies in PATH..."
@@ -173,13 +224,21 @@ cp -r "${SCRIPT_DIR}/web/public/"* "${HOME}/.local/share/schwi/web/public/"
 log_success "Deployed Web Dashboard to ~/.local/share/schwi/web/"
 
 # 7. Initialize local directory structures and gitignore
-log_info "Initializing workspace structures..."
-mkdir -p "${HOME}/.schwi" "${HOME}/.worktrees"
+log_info "Initializing workspace structures and configuration..."
+mkdir -p "${HOME}/.schwi" "${HOME}/.worktrees" "${SCRIPT_DIR}/.schwi"
 if [[ ! -f "${HOME}/.schwi/registry.json" ]] || ! jq empty "${HOME}/.schwi/registry.json" 2>/dev/null; then
     echo "{}" > "${HOME}/.schwi/registry.json"
 fi
-if [[ ! -f "${HOME}/.schwi/config.json" ]] || ! jq empty "${HOME}/.schwi/config.json" 2>/dev/null; then
-    echo '{"is_vps": true, "port": 3456}' > "${HOME}/.schwi/config.json"
+
+# Write environment configuration (VPS vs Local)
+cat <<EOF > "${HOME}/.schwi/config.json"
+{
+  "is_vps": ${IS_VPS_BOOL},
+  "port": 3456
+}
+EOF
+if [[ -d "${SCRIPT_DIR}/.schwi" ]]; then
+    cp "${HOME}/.schwi/config.json" "${SCRIPT_DIR}/.schwi/config.json" 2>/dev/null || true
 fi
 
 if [[ -f "${HOME}/.gitignore" ]]; then
@@ -191,7 +250,7 @@ else
 .worktrees/
 EOF
 fi
-log_success "Workspace registry, config, and .gitignore configured"
+log_success "Workspace registry, config (is_vps: ${IS_VPS_BOOL}), and .gitignore configured"
 
 # 8. Verification & Syntax validation
 log_info "Running validation tests..."
