@@ -451,7 +451,7 @@
       outline: none;
     }
 
-    /* Command Modal: Requirement Discovery */
+    /* Modal */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -467,7 +467,7 @@
       background: var(--bg-surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      width: 620px;
+      width: 640px;
       max-width: 94vw;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
       overflow: hidden;
@@ -510,27 +510,47 @@
 
     .spec-textarea:focus { border-color: var(--border-focus); }
 
-    .question-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 12px;
+    /* Discovery Chat Messages */
+    .chat-container {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
+      max-height: 340px;
+      overflow-y: auto;
+      padding-right: 4px;
     }
 
-    .question-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
+    .chat-bubble {
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .chat-bubble-user {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+      align-self: flex-end;
+      max-width: 85%;
+    }
+
+    .chat-bubble-agent {
+      background: #09090c;
+      border: 1px solid var(--border-subtle);
+      color: #e4e4e7;
+      align-self: flex-start;
+      max-width: 95%;
+      white-space: pre-wrap;
+    }
+
+    .chat-sender-tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+      margin-bottom: 4px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-    }
-
-    .question-text {
-      font-size: 12px;
-      color: var(--text);
     }
 
     .modal-footer {
@@ -628,7 +648,6 @@
       <footer class="action-bar" id="action-bar">
         <!-- Staged State Controls: Spec Revision & Spawning -->
         <div id="spawn-controls" style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
-          <!-- Pre-spawn Natural Language Spec Refinement -->
           <div class="action-row">
             <input type="text" id="spec-revision-prompt" class="input-field" placeholder="Prompt spec revision (e.g. 'Add Redis cache support', 'Include unit tests for auth error cases')...">
             <button class="btn btn-sm" onclick="refineCurrentSpec()">Refine Spec</button>
@@ -654,40 +673,53 @@
     </main>
   </div>
 
-  <!-- Interactive 3-Phase Discovery Modal -->
+  <!-- Interactive Agent Discovery Modal -->
   <div class="modal-backdrop" id="create-modal">
     <div class="modal-window">
-      <!-- Phase 1: Natural Language Prompt -->
+      <!-- Phase 1: Task Prompt & Agent Selection -->
       <div id="modal-phase-1">
         <div class="modal-header">
           <h3>Create Swarm Task</h3>
           <button class="btn btn-sm" onclick="closeCreateModal()">esc</button>
         </div>
         <div class="modal-body">
-          <label style="font-size: 11px; color: var(--text-muted);">What do you want to build or modify?</label>
-          <textarea id="modal-prompt" class="spec-textarea" style="height: 130px;" placeholder="e.g. Implement Google OAuth2 authentication callback, store user session in Redis, and add unit tests with mock tokens..."></textarea>
+          <div>
+            <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">Discovery & Execution Agent</label>
+            <select id="modal-agent" class="select-field" style="width: 100%;">
+              <option value="agy">Antigravity (Recommended — Full Codebase Reasoning & Architecture)</option>
+              <option value="kilo">Kilo Code (Fast Localized Agent)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">What do you want to build or modify?</label>
+            <textarea id="modal-prompt" class="spec-textarea" style="height: 120px;" placeholder="e.g. Implement Google OAuth2 authentication callback in api/auth.py, store sessions in Redis, and add unit tests..."></textarea>
+          </div>
         </div>
         <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
           <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
-          <button class="btn btn-sm btn-primary" id="btn-analyze" onclick="startDiscoveryAnalysis()">Analyze & Generate Questions →</button>
+          <button class="btn btn-sm btn-primary" id="btn-start-chat" onclick="startDiscoveryDialogue()">Start Discovery with Agent →</button>
         </div>
       </div>
 
-      <!-- Phase 2: Clarifying Questions -->
+      <!-- Phase 2: Live Multi-turn Dialogue with Selected Agent -->
       <div id="modal-phase-2" style="display: none;">
         <div class="modal-header">
-          <h3>Requirement Clarification</h3>
-          <span id="modal-complexity-tag" class="badge">Antigravity</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3>Requirement Discovery</h3>
+            <span id="chat-agent-badge" class="badge">agy</span>
+          </div>
+          <button class="btn btn-sm btn-primary" id="btn-finish-spec" onclick="finishAndSynthesizeSpec()">⚡ Generate Task Spec →</button>
         </div>
-        <div class="modal-body" id="modal-questions-container">
-          <!-- Dynamically inserted question cards -->
+        <div class="modal-body">
+          <div class="chat-container" id="discovery-chat-box"></div>
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <input type="text" id="chat-reply-input" class="input-field" placeholder="Reply to agent or answer clarifying questions..." onkeydown="handleChatKey(event)">
+            <button class="btn btn-sm" id="btn-send-reply" onclick="sendDiscoveryReply()">Reply</button>
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-sm" onclick="backToPhase1()">Back</button>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
-            <button class="btn btn-sm btn-primary" id="btn-generate-spec" onclick="synthesizeSpecFromQuestions()">Synthesize Task Spec →</button>
-          </div>
+          <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
         </div>
       </div>
 
@@ -715,7 +747,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-sm" onclick="backToPhase2()">Back to Questions</button>
+          <button class="btn btn-sm" onclick="backToPhase2()">Back to Chat</button>
           <div style="display: flex; gap: 8px;">
             <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
             <button class="btn btn-sm btn-primary" id="btn-create-wt" onclick="submitCreateWorktree()">Create Worktree & Stage Spec</button>
@@ -730,22 +762,15 @@
     let isVps = false;
     let currentWt = null;
     let currentTab = 'spec';
-    let discoveryState = {};
+    let chatMessages = [];
+    let selectedAgent = 'agy';
     let terminalPollTimer = null;
     let userScrolledTerminal = false;
 
-    // ANSI Color Escape Code Parser
     function ansiToHtml(text) {
       if (!text) return '';
-      let html = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-      // Strip cursor movement / reset artifacts
+      let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       html = html.replace(/\x1b\[[0-9;]*[HfABCDsuJKnhilmpqr]/g, '');
-
-      // Colors
       html = html
         .replace(/\x1b\[0m/g, '</span>')
         .replace(/\x1b\[1m/g, '<span style="font-weight:bold; color:#fff;">')
@@ -756,7 +781,6 @@
         .replace(/\x1b\[35m/g, '<span style="color:#c084fc;">')
         .replace(/\x1b\[36m/g, '<span style="color:#38bdf8;">')
         .replace(/\x1b\[90m/g, '<span style="color:#71717a;">');
-
       return html;
     }
 
@@ -791,7 +815,6 @@
     }
 
     function renderAll() {
-      // Header badges
       const vpsLabel = document.getElementById('vps-label');
       const netLabel = document.getElementById('net-label');
       
@@ -803,14 +826,12 @@
         netLabel.textContent = 'Localhost: 3456';
       }
 
-      // Active count
       let active = 0;
       Object.values(registry).forEach(item => {
         if (item.status === 'WORKING') active++;
       });
       document.getElementById('active-count').textContent = active;
 
-      // Worktree List
       const listEl = document.getElementById('wt-list');
       const keys = Object.keys(registry);
 
@@ -938,7 +959,6 @@
       setTimeout(() => btn.textContent = 'Save Spec', 1500);
     }
 
-    // Natural Language Spec Revision (Pre-Spawn)
     async function refineCurrentSpec() {
       if (!currentWt) return;
       const revision = document.getElementById('spec-revision-prompt').value.trim();
@@ -1000,7 +1020,6 @@
       container.innerHTML = html;
     }
 
-    // Realtime Terminal Output
     async function loadOutput() {
       if (!currentWt) return;
       document.getElementById('terminal-target').textContent = `worker: ${currentWt}`;
@@ -1029,7 +1048,6 @@
       }, 700);
     }
 
-    // User scroll detection on terminal
     document.getElementById('terminal-screen').addEventListener('scroll', (e) => {
       const el = e.target;
       userScrolledTerminal = (el.scrollHeight - el.scrollTop - el.clientHeight) > 40;
@@ -1084,7 +1102,6 @@
       await fetch(`/api/worktrees/${currentWt}/cleanup`, { method: 'POST' });
     }
 
-    // Toggle VPS Mode
     document.getElementById('vps-badge').onclick = async () => {
       const next = !isVps;
       await fetch('/api/config', {
@@ -1096,11 +1113,12 @@
       renderAll();
     };
 
-    // --- Interactive 3-Phase Discovery Modal Logic ---
+    // --- Interactive Multi-turn Agent Discovery Dialogue ---
     function openCreateModal() {
       document.getElementById('create-modal').style.display = 'flex';
       backToPhase1();
       document.getElementById('modal-prompt').value = '';
+      chatMessages = [];
       setTimeout(() => document.getElementById('modal-prompt').focus(), 50);
     }
 
@@ -1112,10 +1130,10 @@
       document.getElementById('modal-phase-1').style.display = 'block';
       document.getElementById('modal-phase-2').style.display = 'none';
       document.getElementById('modal-phase-3').style.display = 'none';
-      const btn = document.getElementById('btn-analyze');
+      const btn = document.getElementById('btn-start-chat');
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'Analyze & Generate Questions →';
+        btn.textContent = 'Start Discovery with Agent →';
       }
     }
 
@@ -1125,86 +1143,128 @@
       document.getElementById('modal-phase-3').style.display = 'none';
     }
 
-    // Phase 1 -> Phase 2 (Generate Questions)
-    async function startDiscoveryAnalysis() {
-      const prompt = document.getElementById('modal-prompt').value.trim();
-      if (!prompt) return alert('Please enter a description for what you want to build.');
+    function renderChat() {
+      const box = document.getElementById('discovery-chat-box');
+      let html = '';
+      chatMessages.forEach(m => {
+        const isUser = m.role === 'user';
+        const sender = isUser ? 'You' : (selectedAgent === 'agy' ? 'Antigravity' : 'Kilo');
+        html += `
+          <div class="chat-bubble ${isUser ? 'chat-bubble-user' : 'chat-bubble-agent'}">
+            <div class="chat-sender-tag">${sender}</div>
+            <div>${m.content.replace(/\n/g, '<br>')}</div>
+          </div>
+        `;
+      });
+      box.innerHTML = html;
+      box.scrollTop = box.scrollHeight;
+    }
 
-      const btn = document.getElementById('btn-analyze');
+    async function startDiscoveryDialogue() {
+      const prompt = document.getElementById('modal-prompt').value.trim();
+      if (!prompt) return alert('Please enter what you want to build or modify.');
+
+      selectedAgent = document.getElementById('modal-agent').value;
+      document.getElementById('chat-agent-badge').textContent = selectedAgent;
+
+      const btn = document.getElementById('btn-start-chat');
       btn.disabled = true;
-      btn.textContent = 'Analyzing requirements...';
+      btn.textContent = 'Contacting agent...';
+
+      chatMessages = [{ role: 'user', content: prompt }];
+      document.getElementById('modal-phase-1').style.display = 'none';
+      document.getElementById('modal-phase-2').style.display = 'block';
+      renderChat();
+
+      // Show thinking bubble
+      chatMessages.push({ role: 'assistant', content: '⏳ Analyzing codebase context and formulating clarifying questions...' });
+      renderChat();
 
       try {
-        const res = await fetch('/api/analyze-task', {
+        const res = await fetch('/api/discovery/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ agent: selectedAgent, messages: [{ role: 'user', content: prompt }] }),
         });
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        chatMessages.pop(); // Remove thinking bubble
 
-        discoveryState = data.analysis;
-        discoveryState.initialPrompt = prompt;
-
-        document.getElementById('modal-complexity-tag').textContent = discoveryState.agent === 'agy'
-          ? 'Antigravity (High-Complexity)'
-          : 'Kilo (Fast / Localized)';
-
-        // Render dynamic question cards
-        const container = document.getElementById('modal-questions-container');
-        let html = '';
-        discoveryState.questions.forEach((q, idx) => {
-          html += `
-            <div class="question-card">
-              <span class="question-label">Question ${idx + 1}: ${q.label}</span>
-              <p class="question-text">${q.question}</p>
-              <input type="text" id="q-ans-${q.id}" class="input-field" value="${q.default}">
-            </div>
-          `;
-        });
-        container.innerHTML = html;
-
-        document.getElementById('modal-phase-1').style.display = 'none';
-        document.getElementById('modal-phase-2').style.display = 'block';
+        if (data.message) {
+          chatMessages.push({ role: 'assistant', content: data.message });
+        }
+        renderChat();
+        setTimeout(() => document.getElementById('chat-reply-input').focus(), 50);
       } catch (err) {
-        alert('Discovery error: ' + err.message);
+        chatMessages.pop();
+        chatMessages.push({ role: 'assistant', content: 'Error querying agent: ' + err.message });
+        renderChat();
+      } finally {
         btn.disabled = false;
-        btn.textContent = 'Analyze & Generate Questions →';
+        btn.textContent = 'Start Discovery with Agent →';
       }
     }
 
-    // Phase 2 -> Phase 3 (Synthesize Spec)
-    async function synthesizeSpecFromQuestions() {
-      const btn = document.getElementById('btn-generate-spec');
+    function handleChatKey(e) {
+      if (e.key === 'Enter') sendDiscoveryReply();
+    }
+
+    async function sendDiscoveryReply() {
+      const input = document.getElementById('chat-reply-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      chatMessages.push({ role: 'user', content: text });
+      input.value = '';
+      renderChat();
+
+      const btn = document.getElementById('btn-send-reply');
+      btn.disabled = true;
+
+      // Temporary thinking state
+      chatMessages.push({ role: 'assistant', content: '⏳ Evaluating response...' });
+      renderChat();
+
+      try {
+        const res = await fetch('/api/discovery/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent: selectedAgent, messages: chatMessages.slice(0, -1) }),
+        });
+        const data = await res.json();
+        chatMessages.pop(); // Remove thinking
+
+        if (data.message) {
+          chatMessages.push({ role: 'assistant', content: data.message });
+        }
+        renderChat();
+      } catch (err) {
+        chatMessages.pop();
+        chatMessages.push({ role: 'assistant', content: 'Agent response error: ' + err.message });
+        renderChat();
+      } finally {
+        btn.disabled = false;
+        input.focus();
+      }
+    }
+
+    async function finishAndSynthesizeSpec() {
+      const btn = document.getElementById('btn-finish-spec');
       btn.disabled = true;
       btn.textContent = 'Synthesizing specification...';
 
-      const answers = {};
-      discoveryState.questions.forEach(q => {
-        const val = document.getElementById(`q-ans-${q.id}`)?.value || q.default;
-        answers[q.id] = val;
-      });
-
       try {
-        const res = await fetch('/api/generate-spec', {
+        const res = await fetch('/api/discovery/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: discoveryState.initialPrompt,
-            name: discoveryState.name,
-            branch: discoveryState.branch,
-            agent: discoveryState.agent,
-            complexity: discoveryState.complexity,
-            answers,
-          }),
+          body: JSON.stringify({ agent: selectedAgent, messages: chatMessages }),
         });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        document.getElementById('modal-name').value = discoveryState.name;
-        document.getElementById('modal-branch').value = discoveryState.branch;
+        document.getElementById('modal-name').value = data.name || 'wt-feature';
+        document.getElementById('modal-branch').value = data.branch || 'feat/feature';
         document.getElementById('modal-spec').value = data.spec;
-        document.getElementById('modal-phase3-agent').textContent = discoveryState.agent;
+        document.getElementById('modal-phase3-agent').textContent = selectedAgent;
 
         document.getElementById('modal-phase-2').style.display = 'none';
         document.getElementById('modal-phase-3').style.display = 'block';
@@ -1212,11 +1272,10 @@
         alert('Synthesis error: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Synthesize Task Spec →';
+        btn.textContent = '⚡ Generate Task Spec →';
       }
     }
 
-    // Phase 3: Submit Worktree Creation
     async function submitCreateWorktree() {
       const name = document.getElementById('modal-name').value.trim();
       const branch = document.getElementById('modal-branch').value.trim();
@@ -1248,12 +1307,10 @@
       }
     }
 
-    // Keyboard Shortcuts (esc to close modal)
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeCreateModal();
     });
 
-    // Init
     loadStatus();
     connectEvents();
   </script>

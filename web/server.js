@@ -182,6 +182,57 @@ fs.watchFile(REGISTRY_FILE, { interval: 1000 }, () => {
   } catch {}
 });
 
+async function queryAgentDirect(agent, systemPrompt, userMessage) {
+  const combined = `${systemPrompt}\n\n${userMessage}\n\nResponse:`;
+  const sanitized = combined.replace(/'/g, "'\\''");
+
+  if (agent === 'agy' || !agent) {
+    try {
+      const out = execSync(`agy --effort low -p '${sanitized}'`, {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        timeout: 40000,
+      });
+      if (out && out.trim()) return out.trim();
+    } catch (e) {
+      console.warn('agy query error, falling back to synthesis:', e.message);
+    }
+  } else if (agent === 'kilo') {
+    try {
+      const out = execSync(`kilo run '${sanitized}'`, {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        timeout: 40000,
+      });
+      if (out && out.trim()) return out.trim();
+    } catch (e) {
+      console.warn('kilo query error, falling back to synthesis:', e.message);
+    }
+  }
+
+  return `1. What specific files, modules, or models should be created or updated?
+2. Are there any edge cases, breaking changes, or backward compatibility constraints?
+3. What validation tests or acceptance criteria must pass before merging?`;
+}
+
+function refineSpecContent(existingSpec, revisionPrompt) {
+  if (!existingSpec) return `# Task Revision\n\n## Revisions\n- ${revisionPrompt}`;
+  const nowIso = new Date().toISOString();
+  let updated = existingSpec;
+
+  if (updated.includes('## 1. Objectives & Scope')) {
+    updated = updated.replace('## 1. Objectives & Scope', `## 1. Objectives & Scope\n- **Revision (${nowIso.slice(11, 19)}):** ${revisionPrompt}`);
+  } else {
+    updated += `\n### Revision\n- ${revisionPrompt}\n`;
+  }
+
+  if (updated.includes('## 3. Acceptance Criteria')) {
+    updated = updated.replace('## 3. Acceptance Criteria', `## 3. Acceptance Criteria\n- [ ] ${revisionPrompt}`);
+  }
+
+  return updated;
+}
+
 const server = http.createServer(async (req, res) => {
   const remoteIp = req.socket.remoteAddress;
 
@@ -273,160 +324,27 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-function analyzeTaskQuestions(prompt) {
-  if (!prompt || typeof prompt !== 'string') {
-    throw new Error('Prompt is required');
-  }
-
-  const raw = prompt.trim();
-  const lower = raw.toLowerCase();
-
-  // Extract clean words for slug
-  const cleanWords = raw
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => !['a', 'an', 'the', 'to', 'for', 'in', 'on', 'with', 'and', 'or', 'of', 'please', 'i', 'want', 'make', 'add', 'create', 'let', 'us', 'we'].includes(w) && w.length > 1);
-
-  const slug = cleanWords.slice(0, 4).join('-') || 'feature-task';
-  const wtName = `wt-${slug}`;
-  const branchName = `feat/${slug}`;
-
-  // Complexity evaluation
-  const heavyKeywords = [
-    'migrate', 'migration', 'refactor', 'architecture', 'database', 'schema',
-    'orm', 'prisma', 'docker', 'cross-module', 'ast', 'rewrite', 'multi-file',
-    'backend', 'api', 'auth', 'oauth', 'jwt', 'security', 'fullstack', 'service', 'redis'
-  ];
-
-  const matchedHeavy = heavyKeywords.filter((k) => lower.includes(k));
-  const isHeavy = matchedHeavy.length > 0;
-  const agent = isHeavy ? 'agy' : 'kilo';
-  const complexity = isHeavy ? 'High Complexity' : 'Localized / Fast';
-  const reason = isHeavy
-    ? `Task touches architectural aspects (${matchedHeavy.join(', ')}). Routed to Antigravity.`
-    : 'Task is focused or component-level. Routed to Kilo for rapid turnaround.';
-
-  const questions = [];
-
-  // Question 1: Scope & Boundaries
-  if (lower.includes('auth') || lower.includes('oauth') || lower.includes('jwt') || lower.includes('login')) {
-    questions.push({
-      id: 'scope',
-      label: 'Authentication & Session Flow',
-      question: 'Which authentication methods, token stores, or session lifetimes should be supported?',
-      default: 'OAuth2 with secure HTTP-only cookies and Redis token store',
-    });
-  } else if (lower.includes('migrate') || lower.includes('migration') || lower.includes('db') || lower.includes('database') || lower.includes('schema') || lower.includes('orm') || lower.includes('prisma')) {
-    questions.push({
-      id: 'scope',
-      label: 'Database Schema & Migration Scope',
-      question: 'Should automatic migrations be generated, and what data structures or tables are affected?',
-      default: 'Generate migrations without destructive changes; maintain backward compatibility',
-    });
-  } else if (lower.includes('api') || lower.includes('endpoint') || lower.includes('backend') || lower.includes('route')) {
-    questions.push({
-      id: 'scope',
-      label: 'API Contract & Payload Validation',
-      question: 'What endpoints, request/response payloads, or validation rules should be defined?',
-      default: 'REST endpoints with strict schema validation and structured error responses',
-    });
-  } else {
-    questions.push({
-      id: 'scope',
-      label: 'Feature Scope & User Journeys',
-      question: 'What are the exact user flows, component interactions, or primary targets of this change?',
-      default: 'Implement core user flow with clean error boundaries and responsive layout',
-    });
-  }
-
-  // Question 2: Edge Cases & Error Handling
-  questions.push({
-    id: 'edge_cases',
-    label: 'Edge Cases & Blast Radius',
-    question: 'How should failure modes, network timeouts, invalid inputs, or fallback states be handled?',
-    default: 'Graceful degradation with informative error messages and logging',
-  });
-
-  // Question 3: Verification & Test Requirements
-  questions.push({
-    id: 'verification',
-    label: 'Testing & Verification Criteria',
-    question: 'What automated tests or verification checks must pass before integration?',
-    default: 'Unit/integration tests, linter and typecheck verification',
-  });
-
-  return {
-    name: wtName,
-    branch: branchName,
-    agent,
-    complexity,
-    reason,
-    questions,
-  };
-}
-
-function synthesizeTaskSpec({ prompt, name, branch, agent, complexity, answers }) {
-  const nowIso = new Date().toISOString();
-  const rawAnswers = answers || {};
-
-  const scopeAns = rawAnswers.scope || 'Implement requirements according to specification';
-  const edgeAns = rawAnswers.edge_cases || 'Handle null checks, invalid inputs, and error states';
-  const verifyAns = rawAnswers.verification || 'Run unit tests and linters';
-
-  return `# Task: ${name}
-
-**Branch:** \`${branch}\`
-**Created:** ${nowIso}
-**Complexity:** ${complexity || 'High Complexity'} (\`${agent || 'agy'}\`)
-
-## 1. Objectives & Scope
-- **User Prompt:** ${prompt}
-- **Scope & Contract:** ${scopeAns}
-
-## 2. Edge Cases & Blast Radius
-- ${edgeAns}
-- Verify backward compatibility with existing modules and endpoints.
-- Ensure environment configuration and secrets are not leaked or hardcoded.
-
-## 3. Acceptance Criteria
-- [ ] Core functionality implemented according to scope
-- [ ] ${verifyAns}
-- [ ] No regression in existing functionality
-- [ ] Clean exit for Herdr lifecycle transition
-`;
-}
-
-function refineSpecContent(existingSpec, revisionPrompt) {
-  if (!existingSpec) return `# Task Revision\n\n## Revisions\n- ${revisionPrompt}`;
-  const nowIso = new Date().toISOString();
-  let updated = existingSpec;
-
-  if (updated.includes('## 1. Objectives & Scope')) {
-    updated = updated.replace('## 1. Objectives & Scope', `## 1. Objectives & Scope\n- **Revision (${nowIso.slice(11, 19)}):** ${revisionPrompt}`);
-  } else {
-    updated += `\n### Revision\n- ${revisionPrompt}\n`;
-  }
-
-  if (updated.includes('## 3. Acceptance Criteria')) {
-    updated = updated.replace('## 3. Acceptance Criteria', `## 3. Acceptance Criteria\n- [ ] ${revisionPrompt}`);
-  }
-
-  return updated;
-}
-
-// API: Requirement Discovery Analysis (Phase 1: Question Generation)
-if (pathname === '/api/analyze-task' && method === 'POST') {
-  const { prompt } = body;
-  if (!prompt || !prompt.trim()) {
+// API: Multi-turn Interactive Discovery Chat with Chosen Agent
+if (pathname === '/api/discovery/chat' && method === 'POST') {
+  const { agent = 'agy', messages = [] } = body;
+  if (!messages || messages.length === 0) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Prompt is required for requirement analysis' }));
+    res.end(JSON.stringify({ error: 'Messages array is required' }));
     return;
   }
+
+  const systemPrompt = `You are ${agent === 'agy' ? 'Antigravity' : 'Kilo'}, an expert software engineering agent conducting an interactive requirement discovery interview with a developer before creating an isolated Git worktree.
+Rules:
+- If this is the start: Ask 2-3 concise, high-leverage technical questions (scope boundaries, edge cases, contracts, DB schemas).
+- If the developer answered previous questions: Acknowledge their decisions and ask any crucial follow-up questions, or if everything is clear, confirm readiness to synthesize the specification.
+- Be concise, direct, and focused on code architecture. Avoid conversational fluff.`;
+
+  const conversationText = messages.map(m => `${m.role === 'user' ? 'Developer' : 'Agent'}: ${m.content}`).join('\n\n');
+
   try {
-    const analysis = analyzeTaskQuestions(prompt);
+    const reply = await queryAgentDirect(agent, systemPrompt, conversationText);
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, analysis }));
+    res.end(JSON.stringify({ success: true, message: reply, agent }));
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: err.message }));
@@ -434,13 +352,60 @@ if (pathname === '/api/analyze-task' && method === 'POST') {
   return;
 }
 
-// API: Synthesize Task Spec from Questions & Answers (Phase 2)
-if (pathname === '/api/generate-spec' && method === 'POST') {
-  const { prompt, name, branch, agent, complexity, answers } = body;
+// API: Synthesize Full Task Spec from Multi-turn Chat
+if (pathname === '/api/discovery/synthesize' && method === 'POST') {
+  const { agent = 'agy', messages = [] } = body;
+  const conversationText = messages.map(m => `${m.role === 'user' ? 'Developer' : 'Agent'}: ${m.content}`).join('\n\n');
+  const firstUserPrompt = messages.find(m => m.role === 'user')?.content || 'Feature Task';
+
+  const systemPrompt = `You are a swarm task compiler. Compile the requirement discovery dialogue into a complete, structured .schwi-task.md specification and suggest a worktree slug (e.g. wt-feature-name) and git branch (e.g. feat/feature-name).
+You MUST respond with valid JSON in this exact structure:
+{
+  "name": "wt-slug",
+  "branch": "feat/slug",
+  "spec": "# Task: wt-slug\\n\\n**Branch:** \`feat/slug\`\\n**Complexity:** High Complexity (\`${agent}\`)\\n\\n## 1. Objectives & Scope\\n- ...\\n\\n## 2. Edge Cases & Blast Radius\\n- ...\\n\\n## 3. Acceptance Criteria\\n- [ ] ..."
+}`;
+
   try {
-    const spec = synthesizeTaskSpec({ prompt, name, branch, agent, complexity, answers });
+    const raw = await queryAgentDirect(agent, systemPrompt, conversationText);
+    let parsed = null;
+    try {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+    } catch (e) {}
+
+    if (!parsed || !parsed.spec) {
+      // Fallback synthesis
+      const cleanSlug = firstUserPrompt.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30).replace(/-+/g, '-').replace(/^-|-$/g, '') || 'task';
+      const wtName = `wt-${cleanSlug}`;
+      const branchName = `feat/${cleanSlug}`;
+      const spec = `# Task: ${wtName}
+
+**Branch:** \`${branchName}\`
+**Created:** ${new Date().toISOString()}
+**Complexity:** ${agent === 'agy' ? 'High Complexity' : 'Localized'} (\`${agent}\`)
+
+## 1. Objectives & Scope
+- **Initial Request:** ${firstUserPrompt}
+- **Discovery Summary:**
+${conversationText.split('\n').map(l => `  > ${l}`).join('\n')}
+
+## 2. Edge Cases & Blast Radius
+- Verify backward compatibility with existing modules and endpoints.
+- Ensure error states, null checks, and invalid inputs are handled cleanly.
+- Check environment variable requirements and configuration defaults.
+
+## 3. Acceptance Criteria
+- [ ] Core feature implementation complete and verified
+- [ ] Local tests, typechecks, or linters passing
+- [ ] No regression in existing functionality
+- [ ] Clean exit for Herdr lifecycle transition
+`;
+      parsed = { name: wtName, branch: branchName, spec };
+    }
+
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ success: true, spec }));
+    res.end(JSON.stringify({ success: true, ...parsed, agent }));
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: err.message }));
