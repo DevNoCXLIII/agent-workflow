@@ -378,7 +378,8 @@
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(2px);
       display: none;
       justify-content: center;
       align-items: center;
@@ -389,12 +390,46 @@
       background: var(--panel);
       border: 1px solid var(--panel-border);
       border-radius: 10px;
-      width: 500px;
-      max-width: 90vw;
-      padding: 20px;
+      width: 620px;
+      max-width: 95vw;
+      padding: 22px;
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      gap: 16px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+    }
+
+    .analysis-card {
+      background: rgba(88, 166, 255, 0.08);
+      border: 1px solid rgba(88, 166, 255, 0.25);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .analysis-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      width: fit-content;
+    }
+
+    .analysis-badge-heavy {
+      background: rgba(188, 140, 255, 0.2);
+      color: #bc8cff;
+      border: 1px solid rgba(188, 140, 255, 0.4);
+    }
+
+    .analysis-badge-light {
+      background: rgba(46, 160, 67, 0.2);
+      color: #3fb950;
+      border: 1px solid rgba(46, 160, 67, 0.4);
     }
 
     .form-group {
@@ -418,6 +453,8 @@
       font-size: 0.85rem;
       outline: none;
     }
+
+    .form-input:focus { border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -510,25 +547,69 @@
     </main>
   </div>
 
-  <!-- Create Worktree Modal -->
+  <!-- Interactive Requirement Discovery & Worktree Modal -->
   <div class="modal-overlay" id="create-modal">
     <div class="modal-card">
-      <h3 style="font-size: 1.1rem; font-weight: 700;">Create Isolated Worktree Task</h3>
-      <div class="form-group">
-        <label class="form-label">Worktree Name</label>
-        <input type="text" id="modal-name" class="form-input" placeholder="wt-feature-auth">
+      <!-- Step 1: Intent Prompt -->
+      <div id="modal-step-1" style="display: flex; flex-direction: column; gap: 14px;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">What is this new task about?</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+            Describe what you want to build or modify. The swarm coordinator will conduct requirement analysis, evaluate complexity, and stage the isolated worktree.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <textarea id="modal-prompt" class="editor-textarea" style="height: 140px;" placeholder="e.g. Implement Google OAuth2 authentication callback, store user session in Redis, and add unit tests with mock tokens..."></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn" onclick="closeCreateModal()">Cancel</button>
+          <button class="btn btn-primary" id="btn-analyze" onclick="analyzeAndProceed()">⚡ Analyze Requirements & Spec</button>
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Git Branch</label>
-        <input type="text" id="modal-branch" class="form-input" placeholder="feat/auth-oauth">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Initial Task Spec</label>
-        <textarea id="modal-spec" class="editor-textarea" style="height: 120px;" placeholder="# Objectives&#10;- Implement feature&#10;&#10;# Acceptance Criteria&#10;- Tests pass"></textarea>
-      </div>
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
-        <button class="btn" onclick="closeCreateModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitCreateWorktree()">Create Worktree</button>
+
+      <!-- Step 2: Analysis Review & Worktree Staging -->
+      <div id="modal-step-2" style="display: none; flex-direction: column; gap: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">Requirement Analysis & Spec</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Review the generated task specification before creating the isolated worktree.</p>
+          </div>
+          <div id="modal-analysis-badge" class="analysis-badge analysis-badge-heavy">
+            <span>⚡ Antigravity</span>
+          </div>
+        </div>
+
+        <div class="analysis-card">
+          <div style="font-size: 0.8rem; color: var(--text-muted);" id="modal-analysis-reason">
+            Task routing analysis...
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label">Worktree Identifier</label>
+            <input type="text" id="modal-name" class="form-input" placeholder="wt-feature-name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Git Branch</label>
+            <input type="text" id="modal-branch" class="form-input" placeholder="feat/feature-name">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Generated Task Specification (.schwi-task.md)</label>
+          <textarea id="modal-spec" class="editor-textarea" style="height: 160px;"></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <button class="btn btn-sm" onclick="backToStep1()">⬅ Edit Prompt</button>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn" onclick="closeCreateModal()">Cancel</button>
+            <button class="btn btn-primary" id="btn-create-wt" onclick="submitCreateWorktree()">🚀 Create Worktree & Stage Spec</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -782,29 +863,97 @@
       renderAll();
     };
 
-    // Modal
+    // Modal & Requirement Discovery
     function openCreateModal() {
       document.getElementById('create-modal').style.display = 'flex';
+      backToStep1();
+      document.getElementById('modal-prompt').value = '';
+      setTimeout(() => document.getElementById('modal-prompt').focus(), 50);
     }
 
     function closeCreateModal() {
       document.getElementById('create-modal').style.display = 'none';
     }
 
+    function backToStep1() {
+      document.getElementById('modal-step-1').style.display = 'flex';
+      document.getElementById('modal-step-2').style.display = 'none';
+      const btn = document.getElementById('btn-analyze');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⚡ Analyze Requirements & Spec';
+      }
+    }
+
+    async function analyzeAndProceed() {
+      const prompt = document.getElementById('modal-prompt').value.trim();
+      if (!prompt) return alert('Please enter what this new task is about.');
+
+      const btn = document.getElementById('btn-analyze');
+      btn.disabled = true;
+      btn.textContent = '🔍 Conducting Requirement Analysis...';
+
+      try {
+        const res = await fetch('/api/analyze-task', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const a = data.analysis;
+        document.getElementById('modal-name').value = a.name;
+        document.getElementById('modal-branch').value = a.branch;
+        document.getElementById('modal-spec').value = a.spec;
+        document.getElementById('modal-analysis-reason').textContent = a.reason;
+
+        const badge = document.getElementById('modal-analysis-badge');
+        if (a.agent === 'agy') {
+          badge.className = 'analysis-badge analysis-badge-heavy';
+          badge.innerHTML = '⚡ Antigravity (High Complexity)';
+        } else {
+          badge.className = 'analysis-badge analysis-badge-light';
+          badge.innerHTML = '🚀 Kilo (Localized)';
+        }
+
+        document.getElementById('modal-step-1').style.display = 'none';
+        document.getElementById('modal-step-2').style.display = 'flex';
+      } catch (err) {
+        alert('Analysis error: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = '⚡ Analyze Requirements & Spec';
+      }
+    }
+
     async function submitCreateWorktree() {
       const name = document.getElementById('modal-name').value.trim();
       const branch = document.getElementById('modal-branch').value.trim();
       const spec = document.getElementById('modal-spec').value.trim();
-      if (!name || !branch) return alert('Name and branch are required');
+      if (!name || !branch) return alert('Worktree name and branch are required');
 
-      await fetch('/api/worktrees/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, branch, spec }),
-      });
+      const btn = document.getElementById('btn-create-wt');
+      btn.disabled = true;
+      btn.textContent = 'Creating worktree...';
 
-      closeCreateModal();
-      currentWt = name;
+      try {
+        const res = await fetch('/api/worktrees/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, branch, spec }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        closeCreateModal();
+        currentWt = name;
+        renderAll();
+      } catch (err) {
+        alert('Failed to create worktree: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🚀 Create Worktree & Stage Spec';
+      }
     }
 
     // Init

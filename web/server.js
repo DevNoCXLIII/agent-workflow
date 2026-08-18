@@ -273,6 +273,98 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+function analyzeTaskPrompt(prompt) {
+  if (!prompt || typeof prompt !== 'string') {
+    throw new Error('Prompt is required');
+  }
+
+  const raw = prompt.trim();
+  // Extract words for slug
+  const cleanWords = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => !['a', 'an', 'the', 'to', 'for', 'in', 'on', 'with', 'and', 'or', 'of', 'please', 'i', 'want', 'make', 'add', 'create', 'let', 'us'].includes(w) && w.length > 1);
+
+  const slug = cleanWords.slice(0, 4).join('-') || 'feature-task';
+  const wtName = `wt-${slug}`;
+  const branchName = `feat/${slug}`;
+
+  // Complexity evaluation
+  const heavyKeywords = [
+    'migrate', 'migration', 'refactor', 'architecture', 'database', 'schema',
+    'orm', 'prisma', 'docker', 'cross-module', 'ast', 'rewrite', 'multi-file',
+    'backend', 'api', 'auth', 'oauth', 'jwt', 'security', 'fullstack', 'service'
+  ];
+
+  const lowerRaw = raw.toLowerCase();
+  const matchedHeavy = heavyKeywords.filter((k) => lowerRaw.includes(k));
+  const isHeavy = matchedHeavy.length > 0;
+
+  const agent = isHeavy ? 'agy' : 'kilo';
+  const complexity = isHeavy ? 'High Complexity' : 'Localized / Fast';
+  const reason = isHeavy
+    ? `Task touches system-level aspects (${matchedHeavy.join(', ')}). Routed to Antigravity.`
+    : 'Task is focused or component-level. Routed to Kilo for rapid turnaround.';
+
+  const nowIso = new Date().toISOString();
+  const sentences = raw.split(/[.\n;]+/).map((s) => s.trim()).filter((s) => s.length > 3);
+
+  const objectives = sentences.length > 0
+    ? sentences.map((s) => `- ${s[0].toUpperCase() + s.slice(1)}`).join('\n')
+    : `- Implement requirements for ${raw}`;
+
+  const spec = `# Task: ${wtName}
+
+**Branch:** \`${branchName}\`
+**Created:** ${nowIso}
+**Complexity:** ${complexity} (\`${agent}\`)
+
+## 1. Objectives & Scope
+${objectives}
+
+## 2. Edge Cases & Blast Radius
+- Verify backward compatibility with existing modules and endpoints.
+- Ensure error states, null checks, and invalid inputs are handled cleanly.
+- Check environment variable requirements and configuration defaults.
+
+## 3. Acceptance Criteria
+- [ ] Core feature implementation complete and verified
+- [ ] Local tests, typechecks, or linters passing
+- [ ] No regression in existing functionality
+- [ ] Clean exit for Herdr lifecycle transition
+`;
+
+  return {
+    name: wtName,
+    branch: branchName,
+    agent,
+    complexity,
+    reason,
+    spec,
+    summary: raw.length > 90 ? raw.slice(0, 87) + '...' : raw,
+  };
+}
+
+// API: Requirement Analysis
+if (pathname === '/api/analyze-task' && method === 'POST') {
+  const { prompt } = body;
+  if (!prompt || !prompt.trim()) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Prompt is required for requirement analysis' }));
+    return;
+  }
+  try {
+    const analysis = analyzeTaskPrompt(prompt);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, analysis }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+  return;
+}
+
   // API: Worktree Create
   if (pathname === '/api/worktrees/create' && method === 'POST') {
     const { name, branch, spec } = body;
