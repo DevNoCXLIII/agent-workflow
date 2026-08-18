@@ -382,7 +382,16 @@ cmd_spawn_worker() {
     update_registry "$wt_name" "$working_entry"
 
     echo "==> Submitting task prompt to '${worker_name}' (timeout: ${prompt_timeout}ms)..."
-    if herdr agent prompt "$worker_name" "$prompt" --wait --until idle --until done --timeout "$prompt_timeout"; then
+    if herdr agent prompt "$worker_name" "$prompt" --wait --timeout "$prompt_timeout"; then
+        # Verify the worker did not crash
+        if ! herdr agent get "$worker_name" >/dev/null 2>&1; then
+            echo "⚠️ Worker process '${worker_name}' exited unexpectedly." >&2
+            local err_iso
+            err_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            update_registry "$wt_name" "$(jq -n --arg now "$err_iso" '{status: "BLOCKED", updated_at: $now}')"
+            return 1
+        fi
+
         local done_iso
         done_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
         handle_worker_completion "$wt_name" "$worker_name" "$done_iso"
@@ -433,7 +442,15 @@ cmd_prompt_worker() {
     echo "==> Forwarding revision prompt to '${worker_name}'..."
     update_registry "$wt_name" "$(jq -n --arg now "$now_iso" '{status: "WORKING", updated_at: $now}')"
 
-    if herdr agent prompt "$worker_name" "$prompt" --wait --until idle --until done --timeout "$timeout"; then
+    if herdr agent prompt "$worker_name" "$prompt" --wait --timeout "$timeout"; then
+        if ! herdr agent get "$worker_name" >/dev/null 2>&1; then
+            echo "⚠️ Worker process '${worker_name}' exited unexpectedly." >&2
+            local err_iso
+            err_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            update_registry "$wt_name" "$(jq -n --arg now "$err_iso" '{status: "BLOCKED", updated_at: $now}')"
+            return 1
+        fi
+
         local done_iso
         done_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
         handle_worker_completion "$wt_name" "$worker_name" "$done_iso"
@@ -445,7 +462,7 @@ cmd_prompt_worker() {
 
 cmd_read_output() {
     local wt_name=""
-    local lines="100"
+    local lines="150"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -463,12 +480,33 @@ cmd_read_output() {
         return 1
     fi
 
+    init_env
     local worker_name="schwi-${wt_name}-worker"
-    if herdr agent get "$worker_name" >/dev/null 2>&1; then
-        herdr agent read "$worker_name" --source recent-unwrapped --lines "$lines" 2>/dev/null || echo "No active output buffer for ${worker_name}."
-    else
-        echo "Worker process '${worker_name}' is currently inactive or completed."
+    local pane_id=""
+    if [[ -f "$REGISTRY_FILE" ]]; then
+        pane_id=$(jq -r --arg wt "$wt_name" '.[$wt].pane_id // empty' "$REGISTRY_FILE" 2>/dev/null || true)
     fi
+
+    # 1. Try reading active agent transcript
+    local out=""
+    if out=$(herdr agent read "$worker_name" --source recent-unwrapped --lines "$lines" 2>/dev/null); then
+        if [[ -n "$out" ]]; then
+            echo "$out"
+            return 0
+        fi
+    fi
+
+    # 2. Fallback to reading the terminal pane directly (captures crashes, build logs, and post-exit outputs)
+    if [[ -n "$pane_id" && "$pane_id" != "null" ]]; then
+        if out=$(herdr pane read "$pane_id" 2>/dev/null); then
+            if [[ -n "$out" ]]; then
+                echo "$out"
+                return 0
+            fi
+        fi
+    fi
+
+    echo "Worker process '${worker_name}' is currently inactive or completed."
 }
 
 cmd_cleanup_wt() {
