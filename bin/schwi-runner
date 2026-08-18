@@ -1,0 +1,522 @@
+#!/usr/bin/env bash
+# schwi-runner - Headless Multi-Agent Swarm Orchestration Engine
+# Orchestrates git worktrees, Herdr panes, and AI workers (Kilo / Antigravity)
+
+set -euo pipefail
+
+get_repo_root() {
+    git rev-parse --show-toplevel 2>/dev/null || pwd
+}
+
+REPO_ROOT="$(get_repo_root)"
+SCHWI_DIR="${REPO_ROOT}/.schwi"
+WORKTREES_DIR="${REPO_ROOT}/.worktrees"
+REGISTRY_FILE="${SCHWI_DIR}/registry.json"
+
+init_env() {
+    mkdir -p "${SCHWI_DIR}" "${WORKTREES_DIR}"
+    if [[ ! -f "${REGISTRY_FILE}" ]] || ! jq empty "${REGISTRY_FILE}" 2>/dev/null; then
+        echo "{}" > "${REGISTRY_FILE}"
+    fi
+}
+
+update_registry() {
+    local wt_name="$1"
+    local json_patch="$2"
+    local tmp_reg
+    tmp_reg="$(mktemp "${TMPDIR:-/tmp}/schwi-reg.XXXXXX")"
+    jq --arg wt "$wt_name" --argjson patch "$json_patch" \
+       '.[$wt] = ((.[$wt] // {}) * $patch)' "${REGISTRY_FILE}" > "${tmp_reg}" && mv "${tmp_reg}" "${REGISTRY_FILE}"
+}
+
+usage() {
+    cat <<EOF
+Usage: schwi-runner <command> [options]
+
+Commands:
+  create-wt     Create an isolated git worktree and stage task spec
+                --name <wt-name> --branch <branch-name> [--spec <spec>] [--spec-file <file>]
+
+  spawn-worker  Spawn an agent worker in a Herdr pane for a worktree
+                --wt <wt-name> --agent <agy|kilo> --prompt <prompt> [--timeout <ms>]
+
+  prompt-worker Forward a prompt or revision to an existing worker
+                --wt <wt-name> --prompt <prompt> [--timeout <ms>]
+
+  read-output   Read unwrapped transcript from a worker
+                --wt <wt-name> [--lines <n>]
+
+  cleanup-wt    Close worker pane, merge branch, and remove worktree
+                --wt <wt-name> [--merge-to <branch>]
+
+  list          List all managed worktrees and their status
+  status        Show detailed status of a worktree
+                --wt <wt-name>
+
+Options:
+  -h, --help    Show this help message
+EOF
+}
+
+cmd_create_wt() {
+    local wt_name=""
+    local branch_name=""
+    local spec_text=""
+    local spec_file=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name|-n)
+                wt_name="$2"; shift 2 ;;
+            --branch|-b)
+                branch_name="$2"; shift 2 ;;
+            --spec|-s)
+                spec_text="$2"; shift 2 ;;
+            --spec-file|-f)
+                spec_file="$2"; shift 2 ;;
+            *)
+                echo "Error: Unknown argument: $1" >&2; return 1 ;;
+        esac
+    done
+
+    if [[ -z "$wt_name" || -z "$branch_name" ]]; then
+        echo "Error: --name and --branch are required for create-wt" >&2
+        return 1
+    fi
+
+    init_env
+
+    local wt_path="${WORKTREES_DIR}/${wt_name}"
+    local task_file="${wt_path}/.schwi-task.md"
+    local now_iso
+    now_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+    echo "==> Setting up worktree '${wt_name}' on branch '${branch_name}'..."
+
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        if [[ -d "$wt_path" ]]; then
+            echo "Warning: Worktree directory '$wt_path' already exists." >&2
+        else
+            if git show-ref --verify --quiet "refs/heads/${branch_name}"; then
+                git worktree add "${wt_path}" "${branch_name}"
+            else
+                git worktree add -b "${branch_name}" "${wt_path}"
+            fi
+        fi
+    else
+        mkdir -p "${wt_path}"
+    fi
+
+    # Initialize .schwi-task.md
+    if [[ -n "$spec_file" && -f "$spec_file" ]]; then
+        cp "$spec_file" "$task_file"
+    elif [[ -n "$spec_text" ]]; then
+        echo "$spec_text" > "$task_file"
+    elif [[ ! -t 0 ]]; then
+        # Read from stdin if piped
+        cat > "$task_file"
+    elif [[ ! -f "$task_file" ]]; then
+        cat <<TASKEOF > "$task_file"
+# Task: ${wt_name}
+
+**Branch:** \`${branch_name}\`
+**Created:** ${now_iso}
+**Status:** STAGED
+
+## Objectives & Requirements
+<!-- Describe the task scope, requirements, edge cases, and expected deliverables -->
+
+## Acceptance Criteria
+- [ ] Core implementation complete
+- [ ] Local tests and validation passing
+- [ ] Clean exit for Herdr lifecycle transition
+TASKEOF
+    fi
+
+    # Initialize worktree runtime rules if not present
+    if [[ ! -f "${wt_path}/AGENTS.md" && ! -f "${wt_path}/GEMINI.md" ]]; then
+        cat <<RULESEOF > "${wt_path}/AGENTS.md"
+# Worker Runtime Rules
+- You are operating inside an isolated Git worktree (\`.worktrees/${wt_name}\`).
+- Read \`.schwi-task.md\` in this directory for acceptance criteria.
+- Perform all file edits, AST transforms, and tests strictly within this worktree.
+- Run local tests before finishing.
+RULESEOF
+    fi
+
+    # Update registry
+    local reg_entry
+    reg_entry=$(jq -n \
+        --arg name "$wt_name" \
+        --arg branch "$branch_name" \
+        --arg path "$wt_path" \
+        --arg now "$now_iso" \
+        '{
+            name: $name,
+            branch: $branch,
+            path: $path,
+            status: "STAGED",
+            created_at: $now,
+            updated_at: $now,
+            pane_id: null,
+            agent: null
+        }')
+
+    update_registry "$wt_name" "$reg_entry"
+
+    echo "✅ Worktree '${wt_name}' created at '${wt_path}'"
+    echo "📋 Task specification staged at '${task_file}'"
+    echo "Registry status: STAGED"
+}
+
+cmd_spawn_worker() {
+    local wt_name=""
+    local agent=""
+    local prompt=""
+    local start_timeout="30000"
+    local prompt_timeout="300000"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wt|-w)
+                wt_name="$2"; shift 2 ;;
+            --agent|-a)
+                agent="$2"; shift 2 ;;
+            --prompt|-p)
+                prompt="$2"; shift 2 ;;
+            --timeout|-t)
+                prompt_timeout="$2"; shift 2 ;;
+            --start-timeout)
+                start_timeout="$2"; shift 2 ;;
+            *)
+                echo "Error: Unknown argument: $1" >&2; return 1 ;;
+        esac
+    done
+
+    if [[ -z "$wt_name" || -z "$agent" || -z "$prompt" ]]; then
+        echo "Error: --wt, --agent, and --prompt are required for spawn-worker" >&2
+        return 1
+    fi
+
+    init_env
+
+    local wt_path="${WORKTREES_DIR}/${wt_name}"
+    if [[ ! -d "$wt_path" ]]; then
+        echo "Error: Worktree path '$wt_path' does not exist." >&2
+        return 1
+    fi
+
+    local worker_name="schwi-${wt_name}-worker"
+    local now_iso
+    now_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+    echo "==> Splitting Herdr pane for worktree '${wt_name}'..."
+
+    # Determine pane to split from
+    local split_cmd
+    if [[ -n "${HERDR_PANE_ID:-}" ]]; then
+        split_cmd="herdr pane split --current --direction right --no-focus --cwd \"$wt_path\""
+    else
+        local curr_pane
+        curr_pane=$(herdr pane list 2>/dev/null | jq -r '.result.panes[] | select(.focused == true) | .pane_id' | head -n 1 || true)
+        if [[ -z "$curr_pane" ]]; then
+            curr_pane=$(herdr pane list 2>/dev/null | jq -r '.result.panes[0].pane_id' | head -n 1 || true)
+        fi
+        if [[ -n "$curr_pane" && "$curr_pane" != "null" ]]; then
+            split_cmd="HERDR_PANE_ID=\"$curr_pane\" herdr pane split --current --direction right --no-focus --cwd \"$wt_path\""
+        else
+            split_cmd="herdr pane split --direction right --no-focus --cwd \"$wt_path\""
+        fi
+    fi
+
+    local split_out
+    split_out=$(eval "$split_cmd" 2>&1) || {
+        echo "Error: Failed to split Herdr pane: $split_out" >&2
+        return 1
+    }
+
+    local pane_id
+    pane_id=$(echo "$split_out" | jq -r '.result.pane.pane_id // .result.pane_id // empty' 2>/dev/null || true)
+    if [[ -z "$pane_id" ]]; then
+        echo "Error: Could not determine pane_id from split output: $split_out" >&2
+        return 1
+    fi
+
+    local agent_extra_flags=()
+    if [[ "$agent" == "agy" ]]; then
+        agent_extra_flags=("--" "--dangerously-skip-permissions")
+    elif [[ "$agent" == "kilo" ]]; then
+        agent_extra_flags=("--" "--auto")
+    fi
+
+    echo "==> Pane '$pane_id' created. Starting agent '${agent}' ('${worker_name}') inside '${wt_path}'..."
+    if ! herdr agent start "$worker_name" --kind "$agent" --pane "$pane_id" --timeout "$start_timeout" "${agent_extra_flags[@]}"; then
+        echo "Error: Failed to start agent '$agent' in pane '$pane_id'." >&2
+        return 1
+    fi
+
+    # Update status to WORKING
+    local working_entry
+    working_entry=$(jq -n \
+        --arg pane "$pane_id" \
+        --arg agent "$agent" \
+        --arg now "$now_iso" \
+        '{
+            status: "WORKING",
+            pane_id: $pane,
+            agent: $agent,
+            updated_at: $now,
+            started_at: $now
+        }')
+    update_registry "$wt_name" "$working_entry"
+
+    echo "==> Submitting task prompt to '${worker_name}' (timeout: ${prompt_timeout}ms)..."
+    if herdr agent prompt "$worker_name" "$prompt" --wait --until idle --until done --timeout "$prompt_timeout"; then
+        local done_iso
+        done_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        local done_entry
+        done_entry=$(jq -n \
+            --arg now "$done_iso" \
+            '{
+                status: "READY_FOR_REVIEW",
+                updated_at: $now,
+                completed_at: $now
+            }')
+        update_registry "$wt_name" "$done_entry"
+        echo "✅ Worker '${worker_name}' completed execution. Worktree '${wt_name}' status: READY_FOR_REVIEW"
+    else
+        local err_iso
+        err_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        local err_entry
+        err_entry=$(jq -n \
+            --arg now "$err_iso" \
+            '{
+                status: "BLOCKED",
+                updated_at: $now
+            }')
+        update_registry "$wt_name" "$err_entry"
+        echo "⚠️ Worker '${worker_name}' did not transition to idle/done or timed out." >&2
+        return 1
+    fi
+}
+
+cmd_prompt_worker() {
+    local wt_name=""
+    local prompt=""
+    local timeout="300000"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wt|-w)
+                wt_name="$2"; shift 2 ;;
+            --prompt|-p)
+                prompt="$2"; shift 2 ;;
+            --timeout|-t)
+                timeout="$2"; shift 2 ;;
+            *)
+                echo "Error: Unknown argument: $1" >&2; return 1 ;;
+        esac
+    done
+
+    if [[ -z "$wt_name" || -z "$prompt" ]]; then
+        echo "Error: --wt and --prompt are required for prompt-worker" >&2
+        return 1
+    fi
+
+    init_env
+    local worker_name="schwi-${wt_name}-worker"
+    local now_iso
+    now_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+    echo "==> Forwarding revision prompt to '${worker_name}'..."
+    update_registry "$wt_name" "$(jq -n --arg now "$now_iso" '{status: "WORKING", updated_at: $now}')"
+
+    if herdr agent prompt "$worker_name" "$prompt" --wait --until idle --until done --timeout "$timeout"; then
+        local done_iso
+        done_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        update_registry "$wt_name" "$(jq -n --arg now "$done_iso" '{status: "READY_FOR_REVIEW", updated_at: $now, completed_at: $now}')"
+        echo "✅ Worker '${worker_name}' finished revision. Worktree '${wt_name}' status: READY_FOR_REVIEW"
+    else
+        echo "⚠️ Worker prompt failed or timed out." >&2
+        return 1
+    fi
+}
+
+cmd_read_output() {
+    local wt_name=""
+    local lines="100"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wt|-w)
+                wt_name="$2"; shift 2 ;;
+            --lines|-l|-n)
+                lines="$2"; shift 2 ;;
+            *)
+                echo "Error: Unknown argument: $1" >&2; return 1 ;;
+        esac
+    done
+
+    if [[ -z "$wt_name" ]]; then
+        echo "Error: --wt is required for read-output" >&2
+        return 1
+    fi
+
+    local worker_name="schwi-${wt_name}-worker"
+    herdr agent read "$worker_name" --source recent-unwrapped --lines "$lines"
+}
+
+cmd_cleanup_wt() {
+    local wt_name=""
+    local merge_to=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wt|-w)
+                wt_name="$2"; shift 2 ;;
+            --merge-to|-m)
+                merge_to="$2"; shift 2 ;;
+            *)
+                echo "Error: Unknown argument: $1" >&2; return 1 ;;
+        esac
+    done
+
+    if [[ -z "$wt_name" ]]; then
+        echo "Error: --wt is required for cleanup-wt" >&2
+        return 1
+    fi
+
+    init_env
+
+    local wt_path="${WORKTREES_DIR}/${wt_name}"
+    local worker_name="schwi-${wt_name}-worker"
+    local branch_name=""
+    local pane_id=""
+
+    if [[ -f "$REGISTRY_FILE" ]]; then
+        branch_name=$(jq -r --arg wt "$wt_name" '.[$wt].branch // empty' "$REGISTRY_FILE" 2>/dev/null || true)
+        pane_id=$(jq -r --arg wt "$wt_name" '.[$wt].pane_id // empty' "$REGISTRY_FILE" 2>/dev/null || true)
+    fi
+
+    echo "==> Cleaning up worktree '${wt_name}'..."
+
+    # 1. Close Herdr worker pane
+    if [[ -n "$pane_id" && "$pane_id" != "null" ]]; then
+        echo "Closing Herdr pane '$pane_id'..."
+        herdr pane close "$pane_id" >/dev/null 2>&1 || true
+    fi
+    local agent_pane
+    agent_pane=$(herdr agent get "$worker_name" 2>/dev/null | jq -r '.result.agent.pane_id // empty' 2>/dev/null || true)
+    if [[ -n "$agent_pane" && "$agent_pane" != "$pane_id" && "$agent_pane" != "null" ]]; then
+        herdr pane close "$agent_pane" >/dev/null 2>&1 || true
+    fi
+
+    # 2. Merge branch if requested and inside git repo
+    if [[ -n "$merge_to" && -n "$branch_name" ]] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "Merging branch '${branch_name}' into '${merge_to}'..."
+        git checkout "$merge_to"
+        git merge "$branch_name" --no-edit -m "Merge branch '$branch_name' into $merge_to (schwi)"
+    fi
+
+    # 3. Remove git worktree
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        if [[ -d "$wt_path" ]]; then
+            echo "Removing git worktree at '${wt_path}'..."
+            git worktree remove "$wt_path" --force 2>/dev/null || rm -rf "$wt_path"
+        fi
+        # 4. Delete branch if merged
+        if [[ -n "$branch_name" ]]; then
+            echo "Deleting branch '${branch_name}'..."
+            git branch -d "$branch_name" 2>/dev/null || git branch -D "$branch_name" 2>/dev/null || true
+        fi
+    else
+        rm -rf "$wt_path"
+    fi
+
+    # 5. Update registry
+    local now_iso
+    now_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    local cleanup_entry
+    cleanup_entry=$(jq -n \
+        --arg now "$now_iso" \
+        --arg merge "$merge_to" \
+        '{
+            status: "CLEANED_UP",
+            merged_to: (if $merge != "" then $merge else null end),
+            updated_at: $now,
+            cleaned_at: $now,
+            pane_id: null
+        }')
+    update_registry "$wt_name" "$cleanup_entry"
+
+    echo "✅ Worktree '${wt_name}' successfully cleaned up and registry updated."
+}
+
+cmd_list() {
+    init_env
+    if [[ ! -s "$REGISTRY_FILE" ]] || [[ "$(jq 'keys | length' "$REGISTRY_FILE")" -eq 0 ]]; then
+        echo "No worktrees registered in .schwi/registry.json"
+        return 0
+    fi
+
+    printf "%-18s %-20s %-18s %-10s %s\n" "WORKTREE" "BRANCH" "STATUS" "AGENT" "PANE"
+    printf "%-18s %-20s %-18s %-10s %s\n" "------------------" "--------------------" "------------------" "----------" "----"
+    jq -r 'to_entries[] | "\(.key)\t\(.value.branch // "-")\t\(.value.status // "UNKNOWN")\t\(.value.agent // "-")\t\(.value.pane_id // "-")"' "$REGISTRY_FILE" | while IFS=$'\t' read -r wt br st ag pn; do
+        printf "%-18s %-20s %-18s %-10s %s\n" "$wt" "$br" "$st" "$ag" "$pn"
+    done
+}
+
+cmd_status() {
+    local wt_name=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wt|-w)
+                wt_name="$2"; shift 2 ;;
+            *)
+                echo "Error: Unknown argument: $1" >&2; return 1 ;;
+        esac
+    done
+
+    init_env
+    if [[ -z "$wt_name" ]]; then
+        jq . "$REGISTRY_FILE"
+    else
+        jq --arg wt "$wt_name" '.[$wt] // {error: "not_found"}' "$REGISTRY_FILE"
+    fi
+}
+
+main() {
+    if [[ $# -eq 0 ]]; then
+        usage
+        exit 1
+    fi
+
+    local subcommand="$1"
+    shift
+
+    case "$subcommand" in
+        create-wt)
+            cmd_create_wt "$@" ;;
+        spawn-worker)
+            cmd_spawn_worker "$@" ;;
+        prompt-worker)
+            cmd_prompt_worker "$@" ;;
+        read-output)
+            cmd_read_output "$@" ;;
+        cleanup-wt)
+            cmd_cleanup_wt "$@" ;;
+        list)
+            cmd_list "$@" ;;
+        status)
+            cmd_status "$@" ;;
+        -h|--help|help)
+            usage ;;
+        *)
+            echo "Error: Unknown subcommand '$subcommand'" >&2
+            usage
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
