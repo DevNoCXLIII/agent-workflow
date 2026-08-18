@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawn, exec, execSync } = require('child_process');
 const { EventEmitter } = require('events');
 
@@ -500,6 +501,86 @@ if (pathname === '/api/refine-spec' && method === 'POST') {
     return;
   }
 
+function getWorktreeThinking(wtName) {
+  const thinking = [];
+  const brainDir = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain');
+  if (!fs.existsSync(brainDir)) return thinking;
+
+  try {
+    const convos = fs.readdirSync(brainDir)
+      .map(id => {
+        const tPath = path.join(brainDir, id, '.system_generated', 'logs', 'transcript_full.jsonl');
+        if (fs.existsSync(tPath)) {
+          const stat = fs.statSync(tPath);
+          return { id, tPath, mtime: stat.mtimeMs };
+        }
+        return null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.mtime - a.mtime);
+
+    for (const c of convos.slice(0, 6)) {
+      const lines = fs.readFileSync(c.tPath, 'utf8').trim().split('\n');
+      let matchesWt = false;
+      const events = [];
+
+      for (const line of lines) {
+        if (!line) continue;
+        try {
+          const item = JSON.parse(line);
+          const str = JSON.stringify(item);
+          if (str.includes(wtName)) {
+            matchesWt = true;
+          }
+
+          if (item.thought) {
+            events.push({
+              type: 'thought',
+              time: item.created_at || new Date().toISOString(),
+              content: item.thought,
+            });
+          }
+
+          if (item.tool_calls && Array.isArray(item.tool_calls)) {
+            for (const tc of item.tool_calls) {
+              events.push({
+                type: 'tool',
+                time: item.created_at || new Date().toISOString(),
+                name: tc.name,
+                action: tc.args?.toolAction || tc.name,
+                summary: tc.args?.toolSummary || tc.name,
+                args: tc.args,
+              });
+            }
+          } else if (item.type === 'PLANNER_RESPONSE' && item.content) {
+            events.push({
+              type: 'response',
+              time: item.created_at || new Date().toISOString(),
+              content: item.content,
+            });
+          }
+        } catch (e) {}
+      }
+
+      if (matchesWt && events.length > 0) {
+        return events;
+      }
+    }
+  } catch (e) {}
+
+  return thinking;
+}
+
+  // API: Get Thinking & Reasoning Steps
+  const thinkMatch = pathname.match(/^\/api\/worktrees\/([^/]+)\/thinking$/);
+  if (thinkMatch && method === 'GET') {
+    const wtName = thinkMatch[1];
+    const steps = getWorktreeThinking(wtName);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ wt: wtName, steps }));
+    return;
+  }
+
   // API: Get Output Transcript
   const outMatch = pathname.match(/^\/api\/worktrees\/([^/]+)\/output$/);
   if (outMatch && method === 'GET') {
@@ -519,7 +600,7 @@ if (pathname === '/api/refine-spec' && method === 'POST') {
   const spawnMatch = pathname.match(/^\/api\/worktrees\/([^/]+)\/spawn$/);
   if (spawnMatch && method === 'POST') {
     const wtName = spawnMatch[1];
-    const { agent = 'kilo', prompt = 'Execute task in .schwi-task.md' } = body;
+    const { agent = 'agy', prompt = 'Execute task in .schwi-task.md' } = body;
     // Execute in background
     runSchwiRunner(['spawn-worker', '--wt', wtName, '--agent', agent, '--prompt', prompt])
       .catch((err) => console.error(`Worker spawn error on ${wtName}:`, err.message));

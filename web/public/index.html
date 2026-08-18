@@ -257,7 +257,7 @@
       background: var(--bg);
     }
 
-    /* Review Notice Bar */
+    /* Notice Banners */
     .review-bar {
       background: rgba(245, 158, 11, 0.06);
       border-bottom: 1px solid rgba(245, 158, 11, 0.2);
@@ -274,6 +274,18 @@
       gap: 8px;
       font-size: 12px;
       color: var(--status-review);
+    }
+
+    .blocked-banner {
+      background: rgba(239, 68, 68, 0.08);
+      border-bottom: 1px solid rgba(239, 68, 68, 0.25);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: #f87171;
+      font-size: 12px;
     }
 
     .cmd-chip {
@@ -350,29 +362,117 @@
       outline: none;
     }
 
-    /* Live Real-time Terminal */
-    .terminal-container {
+    /* Thinking & Reasoning Container */
+    .agent-view-container {
       width: 100%;
       height: 100%;
-      background: #060608;
       display: flex;
       flex-direction: column;
-      position: relative;
+      background: #060608;
     }
 
-    .terminal-header {
-      height: 28px;
+    .agent-subnav {
+      height: 32px;
       background: #0d0d11;
       border-bottom: 1px solid var(--border-subtle);
       padding: 0 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-dim);
     }
 
+    .subnav-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .subnav-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .subnav-btn:hover { color: var(--text); }
+    .subnav-btn.active {
+      color: #fff;
+      background: var(--bg-surface-elevated);
+    }
+
+    .thinking-stream {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .thinking-card {
+      background: #0d0d11;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .thinking-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .thinking-type-thought {
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .thinking-type-tool {
+      color: #a78bfa;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .thinking-type-response {
+      color: #34d399;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .thinking-body {
+      color: #e4e4e7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .tool-action-tag {
+      background: rgba(167, 139, 250, 0.1);
+      border: 1px solid rgba(167, 139, 250, 0.25);
+      color: #c084fc;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    /* Live Real-time Terminal */
     .terminal-screen {
       flex: 1;
       padding: 14px 16px;
@@ -613,6 +713,14 @@
         </div>
       </div>
 
+      <!-- Blocked / Error Banner -->
+      <div id="blocked-banner" class="blocked-banner" style="display: none;">
+        <div>
+          <span>⚠️ Worker execution blocked or exited prematurely. Use Antigravity for stable execution.</span>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="retryWithAntigravity()">⚡ Spawn with Antigravity</button>
+      </div>
+
       <!-- Navigation Tabs -->
       <nav class="nav-tabs">
         <button class="tab-link active" onclick="switchTab('spec')">Task Spec (.schwi-task.md)</button>
@@ -631,13 +739,25 @@
         <!-- Spec Tab -->
         <textarea id="tab-spec" class="editor-pane" placeholder="Task specification..."></textarea>
 
-        <!-- Realtime Terminal Tab -->
-        <div id="tab-terminal" class="terminal-container" style="display: none;">
-          <div class="terminal-header">
-            <span id="terminal-target">worker: idle</span>
-            <span id="terminal-stream-status">STREAM: LIVE</span>
+        <!-- Realtime Agent View Tab (Thinking + Terminal) -->
+        <div id="tab-terminal" class="agent-view-container" style="display: none;">
+          <div class="agent-subnav">
+            <div class="subnav-buttons">
+              <button class="subnav-btn active" id="subtab-thinking-btn" onclick="switchSubTab('thinking')">🧠 Thinking & Reasoning Process</button>
+              <button class="subnav-btn" id="subtab-terminal-btn" onclick="switchSubTab('terminal')">💻 Raw Interactive Terminal</button>
+            </div>
+            <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">
+              <span id="terminal-target">worker: idle</span> · <span id="terminal-stream-status">STREAM: LIVE</span>
+            </div>
           </div>
-          <div id="terminal-screen" class="terminal-screen">Waiting for worker output stream...</div>
+
+          <!-- Thinking Stream View -->
+          <div id="thinking-view" class="thinking-stream">
+            <div style="color: var(--text-dim); text-align: center; padding: 24px;">No active thinking session recorded yet.</div>
+          </div>
+
+          <!-- Raw Terminal View -->
+          <div id="terminal-screen" class="terminal-screen" style="display: none;">Waiting for worker output stream...</div>
         </div>
 
         <!-- Diff Tab -->
@@ -654,8 +774,8 @@
           </div>
           <div class="action-row">
             <select id="agent-select" class="select-field">
-              <option value="agy">Antigravity (High-Complexity / Architect)</option>
-              <option value="kilo">Kilo (Localized / Component)</option>
+              <option value="agy">Antigravity (Recommended — Full Reasoning & Architecture)</option>
+              <option value="kilo">Kilo (Localized / Fast)</option>
             </select>
             <input type="text" id="spawn-prompt" class="input-field" placeholder="Worker initial instruction..." value="Execute task in .schwi-task.md and run verification tests">
             <button class="btn btn-primary" onclick="triggerSpawn()">Spawn Worker</button>
@@ -762,6 +882,7 @@
     let isVps = false;
     let currentWt = null;
     let currentTab = 'spec';
+    let currentSubTab = 'thinking';
     let chatMessages = [];
     let selectedAgent = 'agy';
     let terminalPollTimer = null;
@@ -796,6 +917,7 @@
           } else if (msg.type === 'log') {
             if (msg.data && msg.data.wt === currentWt) {
               updateTerminalView(msg.data.text);
+              loadThinking();
             }
           }
         } catch (err) {}
@@ -874,7 +996,10 @@
       currentWt = name;
       renderAll();
       if (currentTab === 'spec') await loadSpec();
-      if (currentTab === 'terminal') await loadOutput();
+      if (currentTab === 'terminal') {
+        await loadOutput();
+        await loadThinking();
+      }
       if (currentTab === 'diff') await loadDiff();
     }
 
@@ -883,6 +1008,7 @@
       const wt = registry[currentWt];
       const isReview = wt.status === 'READY_FOR_REVIEW';
       const isWorking = wt.status === 'WORKING';
+      const isBlocked = wt.status === 'BLOCKED';
 
       const liveDot = document.getElementById('live-dot');
       if (isWorking) {
@@ -905,10 +1031,17 @@
         reviewBar.style.display = 'none';
       }
 
+      const blockedBanner = document.getElementById('blocked-banner');
+      if (isBlocked) {
+        blockedBanner.style.display = 'flex';
+      } else {
+        blockedBanner.style.display = 'none';
+      }
+
       const spawnControls = document.getElementById('spawn-controls');
       const promptControls = document.getElementById('prompt-controls');
 
-      if (wt.status === 'STAGED') {
+      if (wt.status === 'STAGED' || isBlocked) {
         spawnControls.style.display = 'flex';
         promptControls.style.display = 'none';
         if (wt.agent) document.getElementById('agent-select').value = wt.agent;
@@ -932,9 +1065,18 @@
       if (tab === 'spec') loadSpec();
       if (tab === 'terminal') {
         loadOutput();
+        loadThinking();
         startTerminalPolling();
       }
       if (tab === 'diff') loadDiff();
+    }
+
+    function switchSubTab(sub) {
+      currentSubTab = sub;
+      document.getElementById('subtab-thinking-btn').classList.toggle('active', sub === 'thinking');
+      document.getElementById('subtab-terminal-btn').classList.toggle('active', sub === 'terminal');
+      document.getElementById('thinking-view').style.display = sub === 'thinking' ? 'flex' : 'none';
+      document.getElementById('terminal-screen').style.display = sub === 'terminal' ? 'block' : 'none';
     }
 
     async function loadSpec() {
@@ -1020,6 +1162,76 @@
       container.innerHTML = html;
     }
 
+    // Thinking Process Stream
+    async function loadThinking() {
+      if (!currentWt) return;
+      const container = document.getElementById('thinking-view');
+      try {
+        const res = await fetch(`/api/worktrees/${currentWt}/thinking`);
+        const data = await res.json();
+        const steps = data.steps || [];
+
+        if (steps.length === 0) {
+          // If no transcript yet, parse live terminal for thinking lines
+          const termText = document.getElementById('terminal-screen').textContent || '';
+          if (termText.includes('Thinking') || termText.includes('view_file') || termText.includes('replace_file_content')) {
+            container.innerHTML = `
+              <div class="thinking-card">
+                <div class="thinking-card-header">
+                  <span class="thinking-type-thought">🧠 Active Execution</span>
+                </div>
+                <div class="thinking-body">${ansiToHtml(termText.slice(0, 500))}</div>
+              </div>
+            `;
+            return;
+          }
+          container.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 24px;">No active thinking session recorded yet. Spawn an agent to view reasoning.</div>';
+          return;
+        }
+
+        let html = '';
+        steps.forEach(s => {
+          const timeStr = s.time ? new Date(s.time).toLocaleTimeString() : '';
+          if (s.type === 'thought') {
+            html += `
+              <div class="thinking-card">
+                <div class="thinking-card-header">
+                  <span class="thinking-type-thought">🧠 Thought Process</span>
+                  <span style="color: var(--text-dim);">${timeStr}</span>
+                </div>
+                <div class="thinking-body">${s.content}</div>
+              </div>
+            `;
+          } else if (s.type === 'tool') {
+            html += `
+              <div class="thinking-card" style="border-left: 2px solid #a78bfa;">
+                <div class="thinking-card-header">
+                  <span class="thinking-type-tool">🛠️ Tool Execution</span>
+                  <span style="color: var(--text-dim);">${timeStr}</span>
+                </div>
+                <div>
+                  <span class="tool-action-tag">${s.name}</span>
+                  <span style="font-weight: 500; margin-left: 6px;">${s.summary || s.action}</span>
+                </div>
+              </div>
+            `;
+          } else if (s.type === 'response') {
+            html += `
+              <div class="thinking-card" style="border-left: 2px solid #34d399;">
+                <div class="thinking-card-header">
+                  <span class="thinking-type-response">💬 Agent Conclusion</span>
+                  <span style="color: var(--text-dim);">${timeStr}</span>
+                </div>
+                <div class="thinking-body">${s.content}</div>
+              </div>
+            `;
+          }
+        });
+        container.innerHTML = html;
+      } catch (err) {}
+    }
+
+    // Realtime Terminal Output
     async function loadOutput() {
       if (!currentWt) return;
       document.getElementById('terminal-target').textContent = `worker: ${currentWt}`;
@@ -1044,6 +1256,7 @@
       terminalPollTimer = setInterval(() => {
         if (currentTab === 'terminal' && currentWt && registry[currentWt]?.status === 'WORKING') {
           loadOutput();
+          loadThinking();
         }
       }, 700);
     }
@@ -1071,6 +1284,12 @@
         body: JSON.stringify({ agent, prompt }),
       });
       switchTab('terminal');
+    }
+
+    async function retryWithAntigravity() {
+      if (!currentWt) return;
+      document.getElementById('agent-select').value = 'agy';
+      await triggerSpawn();
     }
 
     async function triggerPrompt() {
@@ -1176,7 +1395,6 @@
       document.getElementById('modal-phase-2').style.display = 'block';
       renderChat();
 
-      // Show thinking bubble
       chatMessages.push({ role: 'assistant', content: '⏳ Analyzing codebase context and formulating clarifying questions...' });
       renderChat();
 
@@ -1187,7 +1405,7 @@
           body: JSON.stringify({ agent: selectedAgent, messages: [{ role: 'user', content: prompt }] }),
         });
         const data = await res.json();
-        chatMessages.pop(); // Remove thinking bubble
+        chatMessages.pop();
 
         if (data.message) {
           chatMessages.push({ role: 'assistant', content: data.message });
@@ -1220,7 +1438,6 @@
       const btn = document.getElementById('btn-send-reply');
       btn.disabled = true;
 
-      // Temporary thinking state
       chatMessages.push({ role: 'assistant', content: '⏳ Evaluating response...' });
       renderChat();
 
@@ -1231,7 +1448,7 @@
           body: JSON.stringify({ agent: selectedAgent, messages: chatMessages.slice(0, -1) }),
         });
         const data = await res.json();
-        chatMessages.pop(); // Remove thinking
+        chatMessages.pop();
 
         if (data.message) {
           chatMessages.push({ role: 'assistant', content: data.message });
