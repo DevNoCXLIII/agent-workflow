@@ -24,11 +24,23 @@ const PUBLIC_DIR = fs.existsSync(path.join(__dirname, 'public'))
   ? path.join(__dirname, 'public')
   : path.join(process.env.HOME || '', '.local', 'share', 'schwi', 'web', 'public');
 
+const GLOBAL_CONFIG_FILE = path.join(process.env.HOME || '', '.schwi', 'config.json');
+
 function initDirs() {
   if (!fs.existsSync(SCHWI_DIR)) fs.mkdirSync(SCHWI_DIR, { recursive: true });
   if (!fs.existsSync(WORKTREES_DIR)) fs.mkdirSync(WORKTREES_DIR, { recursive: true });
   if (!fs.existsSync(REGISTRY_FILE)) fs.writeFileSync(REGISTRY_FILE, '{}', 'utf8');
-  if (!fs.existsSync(CONFIG_FILE)) fs.writeFileSync(CONFIG_FILE, JSON.stringify({ is_vps: true, port: PORT }, null, 2), 'utf8');
+  if (!fs.existsSync(CONFIG_FILE)) {
+    if (fs.existsSync(GLOBAL_CONFIG_FILE)) {
+      try {
+        fs.copyFileSync(GLOBAL_CONFIG_FILE, CONFIG_FILE);
+      } catch {
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify({ is_vps: false, port: PORT }, null, 2), 'utf8');
+      }
+    } else {
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify({ is_vps: false, port: PORT }, null, 2), 'utf8');
+    }
+  }
 }
 
 initDirs();
@@ -38,10 +50,13 @@ function readConfig() {
     if (fs.existsSync(CONFIG_FILE)) {
       return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
     }
+    if (fs.existsSync(GLOBAL_CONFIG_FILE)) {
+      return JSON.parse(fs.readFileSync(GLOBAL_CONFIG_FILE, 'utf8'));
+    }
   } catch (e) {
     console.error('Error reading config:', e.message);
   }
-  return { is_vps: true, port: PORT };
+  return { is_vps: false, port: PORT };
 }
 
 function writeConfig(patch) {
@@ -464,19 +479,22 @@ if (!bindHost) {
 }
 
 server.listen(bindPort, bindHost, () => {
-  const tsIp = getTailscaleIp();
   console.log('====================================================');
   console.log('  ⚡ Schwi Swarm Web Controller');
   console.log(`  Mode: ${isVps ? 'VPS Mode (Active)' : 'Local Mode'}`);
   console.log(`  URL:  http://${bindHost}:${bindPort}`);
   if (isVps) {
+    const tsIp = getTailscaleIp();
     if (tsIp) {
       console.log(`  Tailscale: Connected (IP: ${tsIp})`);
     } else {
       console.log('  Tailscale: Not detected (Bound to 127.0.0.1)');
       console.log('  Tip: Run "sudo tailscale up" to connect VPS to your Tailnet.');
     }
+    console.log('  Security: Locked to Tailscale & Localhost');
+  } else {
+    console.log('  Network: Localhost (127.0.0.1)');
+    console.log('  Security: Localhost Only');
   }
-  console.log('  Security: Locked to Tailscale & Localhost');
   console.log('====================================================');
 });

@@ -20,7 +20,11 @@ init_env() {
         echo "{}" > "${REGISTRY_FILE}"
     fi
     if [[ ! -f "${CONFIG_FILE}" ]] || ! jq empty "${CONFIG_FILE}" 2>/dev/null; then
-        echo '{"is_vps": true, "port": 3456}' > "${CONFIG_FILE}"
+        if [[ -f "${HOME}/.schwi/config.json" ]]; then
+            cp "${HOME}/.schwi/config.json" "${CONFIG_FILE}"
+        else
+            echo '{"is_vps": false, "port": 3456}' > "${CONFIG_FILE}"
+        fi
     fi
 }
 
@@ -49,8 +53,16 @@ is_vps() {
             return 1
         fi
     fi
-    # Default to true on non-Darwin linux headless environments if configured
-    return 0
+    if [[ -f "${HOME}/.schwi/config.json" ]]; then
+        local val
+        val=$(jq -r '.is_vps // empty' "${HOME}/.schwi/config.json" 2>/dev/null || true)
+        if [[ "$val" == "true" || "$val" == "1" ]]; then
+            return 0
+        elif [[ "$val" == "false" || "$val" == "0" ]]; then
+            return 1
+        fi
+    fi
+    return 1
 }
 
 get_tailscale_ip() {

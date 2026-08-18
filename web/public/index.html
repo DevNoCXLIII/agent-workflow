@@ -431,9 +431,9 @@
         <div class="dot dot-pulse"></div>
         <span id="vps-label">VPS Mode Active</span>
       </div>
-      <div class="badge badge-tailscale">
+      <div id="ts-badge" class="badge badge-tailscale">
         <div class="dot"></div>
-        <span id="ts-label">Tailscale Protected</span>
+        <span id="ts-label">Localhost (127.0.0.1)</span>
       </div>
       <div class="badge">
         <span>Active Workers: <b id="active-count">0</b></span>
@@ -565,9 +565,7 @@
         const data = await res.json();
         registry = data.registry || {};
         isVps = data.is_vps;
-        if (data.tailscale_ip) {
-          document.getElementById('ts-label').textContent = `Tailscale: ${data.tailscale_ip}`;
-        }
+        window.__tailscale_ip = data.tailscale_ip;
         renderAll();
       } catch (err) {}
     }
@@ -576,12 +574,18 @@
       // Header badges
       const vpsBadge = document.getElementById('vps-badge');
       const vpsLabel = document.getElementById('vps-label');
+      const tsBadge = document.getElementById('ts-badge');
+      const tsLabel = document.getElementById('ts-label');
       if (isVps) {
         vpsBadge.className = 'badge badge-vps';
         vpsLabel.textContent = 'VPS Mode Active';
+        tsBadge.className = 'badge badge-tailscale';
+        tsLabel.textContent = window.__tailscale_ip ? `Tailscale: ${window.__tailscale_ip}` : 'Tailscale Protected';
       } else {
         vpsBadge.className = 'badge';
         vpsLabel.textContent = 'Local Mode';
+        tsBadge.className = 'badge';
+        tsLabel.textContent = 'Localhost (127.0.0.1)';
       }
 
       // Count active
