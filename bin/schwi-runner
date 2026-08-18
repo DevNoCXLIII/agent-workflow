@@ -323,6 +323,15 @@ cmd_spawn_worker() {
     local now_iso
     now_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
+    # Clean up any existing pane or agent with this worker name to prevent agent_name_taken
+    local existing_pane
+    existing_pane=$(herdr agent list 2>/dev/null | jq -r --arg name "$worker_name" '.result.agents[] | select(.name == $name) | .pane_id' | head -n 1 || true)
+    if [[ -n "$existing_pane" && "$existing_pane" != "null" ]]; then
+        echo "==> Cleaning up existing agent pane '$existing_pane' for '$worker_name'..."
+        herdr pane close "$existing_pane" 2>/dev/null || true
+        sleep 0.2
+    fi
+
     echo "==> Splitting Herdr pane for worktree '${wt_name}'..."
 
     local split_cmd
@@ -381,11 +390,24 @@ cmd_spawn_worker() {
         }')
     update_registry "$wt_name" "$working_entry"
 
-    echo "==> Submitting task prompt to '${worker_name}' (timeout: ${prompt_timeout}ms)..."
-    if herdr agent prompt "$worker_name" "$prompt" --wait --timeout "$prompt_timeout"; then
-        # Verify the worker did not crash
-        if ! herdr agent get "$worker_name" >/dev/null 2>&1; then
-            echo "⚠️ Worker process '${worker_name}' exited unexpectedly." >&2
+    echo "==> Submitting task prompt to '${worker_name}'..."
+    if ! herdr agent prompt "$worker_name" "$prompt" 2>&1; then
+        echo "Error: Failed to submit prompt to '${worker_name}'." >&2
+        local err_iso
+        err_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        update_registry "$wt_name" "$(jq -n --arg now "$err_iso" '{status: "BLOCKED", updated_at: $now}')"
+        return 1
+    fi
+
+    echo "==> Waiting for worker '${worker_name}' to complete (timeout: ${prompt_timeout}ms)..."
+    if herdr agent wait "$worker_name" --until idle --until done --until blocked --timeout "$prompt_timeout" 2>/dev/null; then
+        local agent_info
+        agent_info=$(herdr agent get "$worker_name" 2>/dev/null || true)
+        local final_status
+        final_status=$(echo "$agent_info" | jq -r '.result.agent.agent_status // empty' 2>/dev/null || true)
+
+        if [[ -z "$final_status" || "$final_status" == "blocked" ]]; then
+            echo "⚠️ Worker process '${worker_name}' blocked or exited unexpectedly." >&2
             local err_iso
             err_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
             update_registry "$wt_name" "$(jq -n --arg now "$err_iso" '{status: "BLOCKED", updated_at: $now}')"
@@ -442,20 +464,31 @@ cmd_prompt_worker() {
     echo "==> Forwarding revision prompt to '${worker_name}'..."
     update_registry "$wt_name" "$(jq -n --arg now "$now_iso" '{status: "WORKING", updated_at: $now}')"
 
-    if herdr agent prompt "$worker_name" "$prompt" --wait --timeout "$timeout"; then
-        if ! herdr agent get "$worker_name" >/dev/null 2>&1; then
-            echo "⚠️ Worker process '${worker_name}' exited unexpectedly." >&2
-            local err_iso
-            err_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-            update_registry "$wt_name" "$(jq -n --arg now "$err_iso" '{status: "BLOCKED", updated_at: $now}')"
+    if herdr agent prompt "$worker_name" "$prompt" 2>&1; then
+        echo "==> Waiting for worker '${worker_name}' revision (timeout: ${timeout}ms)..."
+        if herdr agent wait "$worker_name" --until idle --until done --until blocked --timeout "$timeout" 2>/dev/null; then
+            local agent_info
+            agent_info=$(herdr agent get "$worker_name" 2>/dev/null || true)
+            local final_status
+            final_status=$(echo "$agent_info" | jq -r '.result.agent.agent_status // empty' 2>/dev/null || true)
+
+            if [[ -z "$final_status" || "$final_status" == "blocked" ]]; then
+                echo "⚠️ Worker process '${worker_name}' exited unexpectedly." >&2
+                local err_iso
+                err_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+                update_registry "$wt_name" "$(jq -n --arg now "$err_iso" '{status: "BLOCKED", updated_at: $now}')"
+                return 1
+            fi
+
+            local done_iso
+            done_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            handle_worker_completion "$wt_name" "$worker_name" "$done_iso"
+        else
+            echo "⚠️ Worker prompt failed or timed out." >&2
             return 1
         fi
-
-        local done_iso
-        done_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-        handle_worker_completion "$wt_name" "$worker_name" "$done_iso"
     else
-        echo "⚠️ Worker prompt failed or timed out." >&2
+        echo "⚠️ Failed to send prompt to '${worker_name}'." >&2
         return 1
     fi
 }
