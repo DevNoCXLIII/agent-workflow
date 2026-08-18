@@ -438,29 +438,45 @@ const server = http.createServer(async (req, res) => {
   res.end('Not Found\n');
 });
 
-// Determine Bind Host: Prefer Tailscale IP or Localhost (never default to public 0.0.0.0 unless specified)
+// Determine Bind Host & Port
 const ARG_HOST = process.argv.find((a, i) => i > 1 && process.argv[i - 1] === '--host');
 const ARG_PORT = process.argv.find((a, i) => i > 1 && process.argv[i - 1] === '--port');
-const USE_TAILSCALE = process.argv.includes('--tailscale') || true;
+const isVps = isVpsMode();
+const cfg = readConfig();
+
+const bindPort = ARG_PORT
+  ? parseInt(ARG_PORT, 10)
+  : parseInt(process.env.SCHWI_PORT || process.env.PORT || cfg.port || '3456', 10);
 
 let bindHost = ARG_HOST || process.env.SCHWI_HOST;
-const bindPort = ARG_PORT ? parseInt(ARG_PORT, 10) : PORT;
 
 if (!bindHost) {
-  const tsIp = getTailscaleIp();
-  if (tsIp && USE_TAILSCALE) {
-    bindHost = tsIp;
+  if (isVps) {
+    const tsIp = getTailscaleIp();
+    if (tsIp) {
+      bindHost = tsIp;
+    } else {
+      bindHost = '127.0.0.1';
+    }
   } else {
     bindHost = '127.0.0.1';
   }
 }
 
 server.listen(bindPort, bindHost, () => {
-  const isVps = isVpsMode();
+  const tsIp = getTailscaleIp();
   console.log('====================================================');
   console.log('  ⚡ Schwi Swarm Web Controller');
   console.log(`  Mode: ${isVps ? 'VPS Mode (Active)' : 'Local Mode'}`);
-  console.log(`  Tailscale/Local IP: http://${bindHost}:${bindPort}`);
+  console.log(`  URL:  http://${bindHost}:${bindPort}`);
+  if (isVps) {
+    if (tsIp) {
+      console.log(`  Tailscale: Connected (IP: ${tsIp})`);
+    } else {
+      console.log('  Tailscale: Not detected (Bound to 127.0.0.1)');
+      console.log('  Tip: Run "sudo tailscale up" to connect VPS to your Tailnet.');
+    }
+  }
   console.log('  Security: Locked to Tailscale & Localhost');
   console.log('====================================================');
 });

@@ -234,7 +234,8 @@ fi
 cat <<EOF > "${HOME}/.schwi/config.json"
 {
   "is_vps": ${IS_VPS_BOOL},
-  "port": 3456
+  "port": 3456,
+  "tailscale": ${IS_VPS_BOOL}
 }
 EOF
 if [[ -d "${SCRIPT_DIR}/.schwi" ]]; then
