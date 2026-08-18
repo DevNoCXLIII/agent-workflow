@@ -125,10 +125,15 @@ fi
 
 # 6. Sync Web Dashboard Assets
 log_info "Syncing Web Dashboard assets..."
-mkdir -p "${HOME}/.local/share/schwi/web/public"
+mkdir -p "${HOME}/.local/share/schwi/web/public" "${HOME}/.schwi"
 cp "${SCRIPT_DIR}/web/server.js" "${HOME}/.local/share/schwi/web/server.js"
 cp -r "${SCRIPT_DIR}/web/public/"* "${HOME}/.local/share/schwi/web/public/"
 log_success "Synced Web Dashboard at ~/.local/share/schwi/web/"
+
+# Ensure default ~/.schwi/config.json exists
+if [[ ! -f "${HOME}/.schwi/config.json" ]] || ! jq empty "${HOME}/.schwi/config.json" 2>/dev/null; then
+    echo '{"is_vps": false, "port": 3456}' > "${HOME}/.schwi/config.json"
+fi
 
 # 7. Syntax Check
 log_info "Validating syntax..."
