@@ -424,16 +424,16 @@ if (pathname === '/api/analyze-task' && method === 'POST') {
     try {
       let diff = '';
       if (fs.existsSync(wtPath)) {
-        diff = execSync('git diff HEAD~1..HEAD 2>/dev/null || git diff 2>/dev/null || true', {
-          cwd: wtPath,
-          encoding: 'utf8',
-        });
+        diff = execSync(
+          'git diff origin/main...HEAD 2>/dev/null || git diff main...HEAD 2>/dev/null || git diff master...HEAD 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/null || git diff 2>/dev/null || true',
+          { cwd: wtPath, encoding: 'utf8' }
+        );
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ wt: wtName, diff }));
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ wt: wtName, diff: 'No diff available' }));
+      res.end(JSON.stringify({ wt: wtName, diff: '' }));
     }
     return;
   }

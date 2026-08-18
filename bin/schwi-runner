@@ -464,7 +464,11 @@ cmd_read_output() {
     fi
 
     local worker_name="schwi-${wt_name}-worker"
-    herdr agent read "$worker_name" --source recent-unwrapped --lines "$lines"
+    if herdr agent get "$worker_name" >/dev/null 2>&1; then
+        herdr agent read "$worker_name" --source recent-unwrapped --lines "$lines" 2>/dev/null || echo "No active output buffer for ${worker_name}."
+    else
+        echo "Worker process '${worker_name}' is currently inactive or completed."
+    fi
 }
 
 cmd_cleanup_wt() {

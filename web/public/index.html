@@ -3,24 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Schwi Swarm Controller</title>
+  <title>schwi / swarm controller</title>
   <style>
     :root {
-      --bg: #0d1117;
-      --panel: #161b22;
-      --panel-border: #30363d;
-      --panel-hover: #1f242c;
-      --text: #e6edf3;
-      --text-muted: #8b949e;
-      --accent: #58a6ff;
-      --accent-hover: #1f6feb;
-      --green: #2ea043;
-      --green-glow: #238636;
-      --gold: #d29922;
-      --gold-bg: rgba(210, 153, 34, 0.15);
-      --red: #f85149;
-      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --bg: #09090b;
+      --bg-surface: #121215;
+      --bg-surface-elevated: #18181b;
+      --bg-surface-hover: #222226;
+      --border: #27272a;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(255, 255, 255, 0.3);
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --text-dim: #71717a;
+      --accent: #ffffff;
+      --accent-fg: #09090b;
+      --status-working: #60a5fa;
+      --status-review: #f59e0b;
+      --status-staged: #71717a;
+      --status-done: #34d399;
+      --status-error: #ef4444;
+      --diff-add-bg: rgba(34, 197, 94, 0.1);
+      --diff-add-text: #4ade80;
+      --diff-remove-bg: rgba(239, 68, 68, 0.1);
+      --diff-remove-text: #f87171;
+      --diff-header-bg: rgba(255, 255, 255, 0.04);
+      --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,201 +37,229 @@
       background-color: var(--bg);
       color: var(--text);
       font-family: var(--font-sans);
+      font-size: 13px;
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Header */
+    /* Top Bar */
     header {
-      background: var(--panel);
-      border-bottom: 1px solid var(--panel-border);
-      padding: 10px 20px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      height: 48px;
+      padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 15px;
       flex-shrink: 0;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .brand-name {
+      font-family: var(--font-mono);
       font-weight: 700;
-      font-size: 1.1rem;
       letter-spacing: -0.5px;
+      color: var(--text);
     }
 
-    .brand-icon {
-      background: linear-gradient(135deg, #58a6ff, #bc8cff);
-      color: #fff;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      font-weight: 800;
+    .brand-sep {
+      color: var(--text-dim);
     }
 
-    .header-badges {
+    .brand-sub {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .header-meta {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      border: 1px solid var(--panel-border);
-      background: rgba(255, 255, 255, 0.04);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      background: var(--bg);
     }
 
-    .badge-vps {
-      background: rgba(88, 166, 255, 0.15);
-      border-color: rgba(88, 166, 255, 0.4);
-      color: #58a6ff;
-      cursor: pointer;
-    }
-
-    .badge-tailscale {
-      background: rgba(46, 160, 67, 0.15);
-      border-color: rgba(46, 160, 67, 0.4);
-      color: #3fb950;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
+    .status-dot {
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: currentColor;
     }
 
     .dot-pulse {
-      animation: pulse 1.5s infinite;
+      animation: pulse 2s infinite ease-in-out;
     }
 
     @keyframes pulse {
-      0% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(1.15); }
-      100% { opacity: 1; transform: scale(1); }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
 
-    /* Layout */
+    /* Main Container */
     .app-container {
       display: grid;
-      grid-template-columns: 320px 1fr;
+      grid-template-columns: 280px 1fr;
       flex: 1;
       min-height: 0;
     }
 
     /* Sidebar */
     .sidebar {
-      background: var(--panel);
-      border-right: 1px solid var(--panel-border);
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       min-height: 0;
     }
 
     .sidebar-header {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--panel-border);
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
     .sidebar-title {
-      font-size: 0.85rem;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
       text-transform: uppercase;
-      font-weight: 700;
-      color: var(--text-muted);
       letter-spacing: 0.5px;
     }
 
     .btn {
-      background: var(--panel-border);
+      background: var(--bg-surface-elevated);
       color: var(--text);
-      border: 1px solid transparent;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      font-weight: 600;
+      border: 1px solid var(--border);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.15s ease;
+      transition: all 0.12s ease;
+      outline: none;
     }
 
-    .btn:hover { background: #3c444d; }
-    .btn-primary { background: var(--green-glow); color: #fff; border-color: rgba(255, 255, 255, 0.1); }
-    .btn-primary:hover { background: #2ea043; }
-    .btn-accent { background: var(--accent-hover); color: #fff; }
-    .btn-accent:hover { background: #388bfd; }
-    .btn-danger { background: rgba(248, 81, 73, 0.15); color: #f85149; border-color: rgba(248, 81, 73, 0.3); }
-    .btn-danger:hover { background: var(--red); color: #fff; }
-    .btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+    .btn:hover {
+      background: var(--bg-surface-hover);
+      border-color: var(--border-focus);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-fg);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .btn-primary:hover {
+      background: #e4e4e7;
+      border-color: #e4e4e7;
+    }
+
+    .btn-danger {
+      background: transparent;
+      color: var(--diff-remove-text);
+      border-color: transparent;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-sm {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
 
     .worktree-list {
       flex: 1;
       overflow-y: auto;
-      padding: 10px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 4px;
     }
 
-    .wt-card {
-      background: var(--bg);
-      border: 1px solid var(--panel-border);
-      border-radius: 8px;
-      padding: 12px;
+    .wt-item {
+      padding: 10px 12px;
+      border-radius: 6px;
       cursor: pointer;
-      transition: all 0.15s ease;
-      position: relative;
+      border: 1px solid transparent;
+      transition: all 0.1s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
-    .wt-card:hover { border-color: var(--text-muted); }
-    .wt-card.active {
-      border-color: var(--accent);
-      background: rgba(88, 166, 255, 0.05);
+    .wt-item:hover {
+      background: var(--bg-surface-elevated);
     }
 
-    .wt-card-title {
+    .wt-item.active {
+      background: var(--bg-surface-elevated);
+      border-color: var(--border-focus);
+    }
+
+    .wt-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .wt-name {
+      font-family: var(--font-mono);
+      font-size: 12px;
       font-weight: 600;
-      font-size: 0.9rem;
-      margin-bottom: 4px;
+      color: var(--text);
+    }
+
+    .wt-status-tag {
+      font-size: 10px;
+      font-family: var(--font-mono);
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 4px;
     }
 
-    .wt-card-branch {
+    .status-tag-WORKING { color: var(--status-working); }
+    .status-tag-READY_FOR_REVIEW { color: var(--status-review); }
+    .status-tag-STAGED { color: var(--status-staged); }
+    .status-tag-CLEANED_UP { color: var(--text-dim); }
+    .status-tag-BLOCKED { color: var(--status-error); }
+
+    .wt-meta {
       font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-bottom: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      gap: 6px;
     }
-
-    .wt-status-pill {
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 2px 6px;
-      border-radius: 4px;
-      text-transform: uppercase;
-    }
-
-    .status-STAGED { background: rgba(139, 148, 158, 0.2); color: #8b949e; }
-    .status-WORKING { background: rgba(88, 166, 255, 0.2); color: #58a6ff; }
-    .status-READY_FOR_REVIEW { background: var(--gold-bg); color: var(--gold); border: 1px solid rgba(210, 153, 34, 0.4); }
-    .status-CLEANED_UP { background: rgba(255, 255, 255, 0.05); color: #484f58; }
-    .status-BLOCKED { background: rgba(248, 81, 73, 0.2); color: #f85149; }
 
     /* Main Panel */
     .main-panel {
@@ -232,248 +269,292 @@
       background: var(--bg);
     }
 
-    /* VPS Notification Banner */
-    .vps-review-banner {
-      background: linear-gradient(90deg, rgba(210, 153, 34, 0.15), rgba(46, 160, 67, 0.1));
-      border-bottom: 1px solid rgba(210, 153, 34, 0.3);
-      padding: 14px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .vps-banner-header {
+    /* Review Notice Bar (VPS & Local) */
+    .review-bar {
+      background: rgba(245, 158, 11, 0.06);
+      border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+      padding: 10px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 12px;
     }
 
-    .vps-banner-title {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: #f0883e;
+    .review-text {
       display: flex;
       align-items: center;
       gap: 8px;
+      font-size: 12px;
+      color: var(--status-review);
     }
 
-    .code-copy-box {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      padding: 8px 12px;
+    .cmd-chip {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 4px;
       font-family: var(--font-mono);
-      font-size: 0.85rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      color: #58a6ff;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
     }
 
-    /* Content Tabs */
-    .tab-bar {
+    .cmd-chip:hover {
+      border-color: var(--text-muted);
+      color: var(--text);
+    }
+
+    /* Tabs */
+    .nav-tabs {
+      height: 40px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
       display: flex;
-      gap: 10px;
-      padding: 10px 20px 0;
-      background: var(--panel);
-      border-bottom: 1px solid var(--panel-border);
+      gap: 16px;
+      align-items: center;
       flex-shrink: 0;
     }
 
-    .tab-btn {
+    .tab-link {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      padding: 8px 16px;
-      font-size: 0.85rem;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
+      padding: 11px 0;
       border-bottom: 2px solid transparent;
+      transition: color 0.12s ease;
     }
 
-    .tab-btn:hover { color: var(--text); }
-    .tab-btn.active {
+    .tab-link:hover {
+      color: var(--text);
+    }
+
+    .tab-link.active {
       color: var(--text);
       border-bottom-color: var(--accent);
+      font-weight: 600;
     }
 
-    .tab-content {
+    /* Content Area */
+    .content-area {
       flex: 1;
       min-height: 0;
-      padding: 20px;
-      overflow-y: auto;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
+      position: relative;
     }
 
-    .editor-textarea {
+    .editor-pane {
       width: 100%;
       height: 100%;
-      background: var(--panel);
+      background: var(--bg);
       color: var(--text);
-      border: 1px solid var(--panel-border);
-      border-radius: 6px;
-      padding: 14px;
+      border: none;
+      padding: 16px;
       font-family: var(--font-mono);
-      font-size: 0.9rem;
-      line-height: 1.5;
+      font-size: 12px;
+      line-height: 1.6;
       resize: none;
       outline: none;
     }
 
-    .editor-textarea:focus { border-color: var(--accent); }
-
-    .terminal-window {
-      background: #06090f;
-      border: 1px solid var(--panel-border);
-      border-radius: 6px;
-      padding: 14px;
+    .terminal-pane {
+      width: 100%;
+      height: 100%;
+      background: #08080a;
+      padding: 16px;
       font-family: var(--font-mono);
-      font-size: 0.85rem;
-      color: #388bfd;
-      flex: 1;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #a1a1aa;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
     }
 
-    .diff-window {
-      background: #06090f;
-      border: 1px solid var(--panel-border);
-      border-radius: 6px;
-      padding: 14px;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      color: var(--text);
-      flex: 1;
+    .diff-container {
+      width: 100%;
+      height: 100%;
       overflow-y: auto;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .diff-line {
+      padding: 1px 6px;
       white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .diff-add {
+      background-color: var(--diff-add-bg);
+      color: var(--diff-add-text);
+    }
+
+    .diff-remove {
+      background-color: var(--diff-remove-bg);
+      color: var(--diff-remove-text);
+    }
+
+    .diff-header {
+      background-color: var(--diff-header-bg);
+      color: var(--text-dim);
+      font-weight: 600;
+      margin-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 6px;
+    }
+
+    .diff-chunk {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.05);
     }
 
     /* Action Footer */
-    .action-footer {
-      background: var(--panel);
-      border-top: 1px solid var(--panel-border);
-      padding: 12px 20px;
+    footer.action-bar {
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 16px;
       display: flex;
-      gap: 12px;
       align-items: center;
+      gap: 10px;
       flex-shrink: 0;
     }
 
-    .prompt-input {
+    .input-field {
       flex: 1;
       background: var(--bg);
-      border: 1px solid var(--panel-border);
-      border-radius: 6px;
-      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 10px;
       color: var(--text);
-      font-size: 0.9rem;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.12s ease;
+    }
+
+    .input-field:focus {
+      border-color: var(--border-focus);
+    }
+
+    .select-field {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 8px;
+      color: var(--text);
+      font-size: 12px;
       outline: none;
     }
 
-    .prompt-input:focus { border-color: var(--accent); }
-
-    /* Modal */
-    .modal-overlay {
+    /* Minimal Command Modal (Linear / Raycast Style) */
+    .modal-backdrop {
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(2px);
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
       display: none;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
       z-index: 100;
     }
 
-    .modal-card {
-      background: var(--panel);
-      border: 1px solid var(--panel-border);
-      border-radius: 10px;
-      width: 620px;
-      max-width: 95vw;
-      padding: 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
-    }
-
-    .analysis-card {
-      background: rgba(88, 166, 255, 0.08);
-      border: 1px solid rgba(88, 166, 255, 0.25);
+    .modal-window {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px;
+      width: 580px;
+      max-width: 92vw;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      gap: 6px;
     }
 
-    .analysis-badge {
-      display: inline-flex;
+    .modal-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 6px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 6px;
-      width: fit-content;
     }
 
-    .analysis-badge-heavy {
-      background: rgba(188, 140, 255, 0.2);
-      color: #bc8cff;
-      border: 1px solid rgba(188, 140, 255, 0.4);
+    .modal-header h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
     }
 
-    .analysis-badge-light {
-      background: rgba(46, 160, 67, 0.2);
-      color: #3fb950;
-      border: 1px solid rgba(46, 160, 67, 0.4);
-    }
-
-    .form-group {
+    .modal-body {
+      padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 12px;
     }
 
-    .form-label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    .form-input {
+    .spec-textarea {
+      width: 100%;
       background: var(--bg);
-      border: 1px solid var(--panel-border);
+      border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 8px 10px;
+      padding: 10px;
       color: var(--text);
-      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+      resize: vertical;
       outline: none;
     }
 
-    .form-input:focus { border-color: var(--accent); }
+    .spec-textarea:focus {
+      border-color: var(--border-focus);
+    }
+
+    .analysis-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .modal-footer {
+      padding: 12px 16px;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
   </style>
 </head>
 <body>
+  <!-- Header -->
   <header>
     <div class="brand">
-      <div class="brand-icon">SCHWI</div>
-      <span>Swarm Controller</span>
+      <span class="brand-name">schwi</span>
+      <span class="brand-sep">/</span>
+      <span class="brand-sub">swarm controller</span>
     </div>
-    <div class="header-badges">
-      <div id="vps-badge" class="badge badge-vps" title="Click to toggle VPS mode">
-        <div class="dot dot-pulse"></div>
-        <span id="vps-label">VPS Mode Active</span>
+    <div class="header-meta">
+      <div id="vps-badge" class="badge" style="cursor: pointer;" title="Toggle VPS Mode">
+        <span class="status-dot dot-pulse" style="color: var(--status-working);"></span>
+        <span id="vps-label">VPS Mode</span>
       </div>
-      <div id="ts-badge" class="badge badge-tailscale">
-        <div class="dot"></div>
-        <span id="ts-label">Localhost (127.0.0.1)</span>
+      <div id="net-badge" class="badge">
+        <span id="net-label">Localhost: 3456</span>
       </div>
       <div class="badge">
-        <span>Active Workers: <b id="active-count">0</b></span>
+        <span>active workers: <b id="active-count">0</b></span>
       </div>
     </div>
   </header>
@@ -483,131 +564,125 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <span class="sidebar-title">Worktrees</span>
-        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New Task</button>
+        <button class="btn btn-sm" onclick="openCreateModal()">+ New Task</button>
       </div>
       <div class="worktree-list" id="wt-list">
-        <div style="padding: 20px; text-align: center; color: var(--text-muted);">
-          Loading worktrees...
+        <div style="padding: 16px; text-align: center; color: var(--text-dim);">
+          No worktrees active.
         </div>
       </div>
     </aside>
 
-    <!-- Main Content -->
+    <!-- Main Workspace -->
     <main class="main-panel" id="main-panel">
-      <!-- VPS Banner (conditional) -->
-      <div id="vps-banner" class="vps-review-banner" style="display: none;">
-        <div class="vps-banner-header">
-          <div class="vps-banner-title">
-            <span>🚀 Checkout <code id="banner-branch">feat/xxx</code> and test, tell me to integrate now or reply with your revision</span>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="triggerIntegrate()">🚀 Integrate Now</button>
+      <!-- Review Banner -->
+      <div id="review-bar" class="review-bar" style="display: none;">
+        <div class="review-text">
+          <span class="status-dot" style="color: var(--status-review);"></span>
+          <span>Task completed. Verify on branch:</span>
+          <span class="cmd-chip" id="banner-cmd" onclick="copyBannerCmd()">git fetch origin && git checkout feat/...</span>
         </div>
-        <div class="code-copy-box">
-          <span id="banner-cmd">git fetch origin && git checkout feat/xxx</span>
-          <button class="btn btn-sm" onclick="copyBannerCmd()">📋 Copy</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-sm btn-primary" onclick="triggerIntegrate()">Integrate</button>
         </div>
       </div>
 
-      <!-- Tab Bar -->
-      <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchTab('spec')">Task Spec (.schwi-task.md)</button>
-        <button class="tab-btn" onclick="switchTab('terminal')">Live Agent Output</button>
-        <button class="tab-btn" onclick="switchTab('diff')">Git Diff</button>
-      </div>
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="tab-link active" onclick="switchTab('spec')">Task Spec</button>
+        <button class="tab-link" onclick="switchTab('terminal')">Worker Output</button>
+        <button class="tab-link" onclick="switchTab('diff')">Git Diff</button>
+        <div style="margin-left: auto;" id="tab-actions">
+          <button class="btn btn-sm" id="btn-save-spec" onclick="saveSpec()">Save Spec</button>
+        </div>
+      </nav>
 
       <!-- Tab Content Area -->
-      <div class="tab-content">
-        <div id="tab-spec" style="height: 100%; display: flex; flex-direction: column; gap: 10px;">
-          <textarea id="spec-editor" class="editor-textarea" placeholder="Task specification..."></textarea>
-          <div style="display: flex; justify-content: flex-end;">
-            <button class="btn btn-accent btn-sm" onclick="saveSpec()">💾 Save Spec</button>
-          </div>
-        </div>
-        <div id="tab-terminal" class="terminal-window" style="display: none;"></div>
-        <div id="tab-diff" class="diff-window" style="display: none;"></div>
+      <div class="content-area">
+        <!-- Spec Tab -->
+        <textarea id="tab-spec" class="editor-pane" placeholder="Task specification..."></textarea>
+
+        <!-- Terminal Tab -->
+        <div id="tab-terminal" class="terminal-pane" style="display: none;"></div>
+
+        <!-- Diff Tab -->
+        <div id="tab-diff" class="diff-container" style="display: none;"></div>
       </div>
 
       <!-- Action Footer -->
-      <div class="action-footer" id="action-footer">
+      <footer class="action-bar" id="action-bar">
+        <!-- Staged State Controls -->
         <div id="spawn-controls" style="display: flex; gap: 8px; width: 100%; align-items: center;">
-          <select id="agent-select" class="form-input" style="width: 140px;">
-            <option value="kilo">Kilo (Lightweight)</option>
-            <option value="agy">Antigravity (Heavy)</option>
+          <select id="agent-select" class="select-field">
+            <option value="kilo">Kilo (Localized)</option>
+            <option value="agy">Antigravity (Architecture)</option>
           </select>
-          <input type="text" id="spawn-prompt" class="prompt-input" placeholder="Enter task prompt for worker..." value="Execute task in .schwi-task.md and verify">
-          <button class="btn btn-primary" onclick="triggerSpawn()">⚡ Spawn Worker</button>
+          <input type="text" id="spawn-prompt" class="input-field" placeholder="Execution instructions for agent..." value="Execute task in .schwi-task.md and run validation tests">
+          <button class="btn btn-primary" onclick="triggerSpawn()">Spawn Worker</button>
         </div>
+
+        <!-- Review State Controls -->
         <div id="prompt-controls" style="display: none; gap: 8px; width: 100%; align-items: center;">
-          <input type="text" id="revision-prompt" class="prompt-input" placeholder="Type revision feedback for worker...">
-          <button class="btn btn-accent" onclick="triggerPrompt()">💬 Send Revision</button>
-          <button class="btn btn-danger btn-sm" onclick="triggerDiscard()">❌ Discard</button>
-          <button class="btn btn-primary" onclick="triggerIntegrate()">🚀 Integrate Now</button>
+          <input type="text" id="revision-prompt" class="input-field" placeholder="Provide revision feedback or adjustments...">
+          <button class="btn" onclick="triggerPrompt()">Send Feedback</button>
+          <button class="btn btn-danger" onclick="triggerDiscard()">Discard</button>
+          <button class="btn btn-primary" onclick="triggerIntegrate()">Integrate</button>
         </div>
-      </div>
+      </footer>
     </main>
   </div>
 
-  <!-- Interactive Requirement Discovery & Worktree Modal -->
-  <div class="modal-overlay" id="create-modal">
-    <div class="modal-card">
-      <!-- Step 1: Intent Prompt -->
-      <div id="modal-step-1" style="display: flex; flex-direction: column; gap: 14px;">
-        <div>
-          <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">What is this new task about?</h3>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
-            Describe what you want to build or modify. The swarm coordinator will conduct requirement analysis, evaluate complexity, and stage the isolated worktree.
-          </p>
+  <!-- Command Modal: Requirement Discovery -->
+  <div class="modal-backdrop" id="create-modal">
+    <div class="modal-window">
+      <!-- Step 1: Prompt Input -->
+      <div id="modal-step-1">
+        <div class="modal-header">
+          <h3>Create Swarm Task</h3>
+          <button class="btn btn-sm" onclick="closeCreateModal()">esc</button>
         </div>
-
-        <div class="form-group">
-          <textarea id="modal-prompt" class="editor-textarea" style="height: 140px;" placeholder="e.g. Implement Google OAuth2 authentication callback, store user session in Redis, and add unit tests with mock tokens..."></textarea>
+        <div class="modal-body">
+          <label style="font-size: 11px; color: var(--text-muted);">What do you want to build or modify?</label>
+          <textarea id="modal-prompt" class="spec-textarea" style="height: 120px;" placeholder="e.g. Implement Google OAuth2 authentication callback in api/auth.py, store sessions in Redis, and add unit tests..."></textarea>
         </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 10px;">
-          <button class="btn" onclick="closeCreateModal()">Cancel</button>
-          <button class="btn btn-primary" id="btn-analyze" onclick="analyzeAndProceed()">⚡ Analyze Requirements & Spec</button>
+        <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
+          <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
+          <button class="btn btn-sm btn-primary" id="btn-analyze" onclick="analyzeAndProceed()">Analyze & Generate Spec</button>
         </div>
       </div>
 
-      <!-- Step 2: Analysis Review & Worktree Staging -->
-      <div id="modal-step-2" style="display: none; flex-direction: column; gap: 14px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+      <!-- Step 2: Spec Confirmation -->
+      <div id="modal-step-2" style="display: none;">
+        <div class="modal-header">
+          <h3>Task Specification & Routing</h3>
+          <span id="modal-complexity-tag" class="badge">Antigravity</span>
+        </div>
+        <div class="modal-body">
+          <div class="analysis-card">
+            <span id="modal-analysis-reason" style="color: var(--text-muted); font-size: 11px;"></span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+              <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Worktree</label>
+              <input type="text" id="modal-name" class="input-field" style="width: 100%; margin-top: 4px;">
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Branch</label>
+              <input type="text" id="modal-branch" class="input-field" style="width: 100%; margin-top: 4px;">
+            </div>
+          </div>
+
           <div>
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff;">Requirement Analysis & Spec</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Review the generated task specification before creating the isolated worktree.</p>
-          </div>
-          <div id="modal-analysis-badge" class="analysis-badge analysis-badge-heavy">
-            <span>⚡ Antigravity</span>
+            <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Specification (.schwi-task.md)</label>
+            <textarea id="modal-spec" class="spec-textarea" style="height: 160px; margin-top: 4px;"></textarea>
           </div>
         </div>
-
-        <div class="analysis-card">
-          <div style="font-size: 0.8rem; color: var(--text-muted);" id="modal-analysis-reason">
-            Task routing analysis...
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <div class="form-group">
-            <label class="form-label">Worktree Identifier</label>
-            <input type="text" id="modal-name" class="form-input" placeholder="wt-feature-name">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Git Branch</label>
-            <input type="text" id="modal-branch" class="form-input" placeholder="feat/feature-name">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Generated Task Specification (.schwi-task.md)</label>
-          <textarea id="modal-spec" class="editor-textarea" style="height: 160px;"></textarea>
-        </div>
-
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <button class="btn btn-sm" onclick="backToStep1()">⬅ Edit Prompt</button>
-          <div style="display: flex; gap: 10px;">
-            <button class="btn" onclick="closeCreateModal()">Cancel</button>
-            <button class="btn btn-primary" id="btn-create-wt" onclick="submitCreateWorktree()">🚀 Create Worktree & Stage Spec</button>
+        <div class="modal-footer">
+          <button class="btn btn-sm" onclick="backToStep1()">Back</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
+            <button class="btn btn-sm btn-primary" id="btn-create-wt" onclick="submitCreateWorktree()">Create Worktree</button>
           </div>
         </div>
       </div>
@@ -616,11 +691,10 @@
 
   <script>
     let registry = {};
-    let isVps = true;
+    let isVps = false;
     let currentWt = null;
     let currentTab = 'spec';
 
-    // Connect SSE
     function connectEvents() {
       const evtSource = new EventSource('/api/events');
       evtSource.onmessage = (e) => {
@@ -628,16 +702,14 @@
           const msg = JSON.parse(e.data);
           if (msg.type === 'init' || msg.type === 'registry') {
             registry = msg.data || msg.registry || {};
-            isVps = msg.is_vps ?? true;
+            isVps = msg.is_vps ?? false;
             renderAll();
           } else if (msg.type === 'log') {
             appendLog(msg.data.text);
           }
         } catch (err) {}
       };
-      evtSource.onerror = () => {
-        setTimeout(connectEvents, 3000);
-      };
+      evtSource.onerror = () => setTimeout(connectEvents, 3000);
     }
 
     async function loadStatus() {
@@ -653,35 +725,30 @@
 
     function renderAll() {
       // Header badges
-      const vpsBadge = document.getElementById('vps-badge');
       const vpsLabel = document.getElementById('vps-label');
-      const tsBadge = document.getElementById('ts-badge');
-      const tsLabel = document.getElementById('ts-label');
+      const netLabel = document.getElementById('net-label');
+      
       if (isVps) {
-        vpsBadge.className = 'badge badge-vps';
-        vpsLabel.textContent = 'VPS Mode Active';
-        tsBadge.className = 'badge badge-tailscale';
-        tsLabel.textContent = window.__tailscale_ip ? `Tailscale: ${window.__tailscale_ip}` : 'Tailscale Protected';
+        vpsLabel.textContent = 'VPS Mode';
+        netLabel.textContent = window.__tailscale_ip ? `Tailscale: ${window.__tailscale_ip}` : 'Tailscale';
       } else {
-        vpsBadge.className = 'badge';
         vpsLabel.textContent = 'Local Mode';
-        tsBadge.className = 'badge';
-        tsLabel.textContent = 'Localhost (127.0.0.1)';
+        netLabel.textContent = 'Localhost: 3456';
       }
 
-      // Count active
+      // Active count
       let active = 0;
       Object.values(registry).forEach(item => {
         if (item.status === 'WORKING') active++;
       });
       document.getElementById('active-count').textContent = active;
 
-      // Render Worktree list
+      // Worktree List
       const listEl = document.getElementById('wt-list');
       const keys = Object.keys(registry);
 
       if (keys.length === 0) {
-        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted);">No worktrees created. Click "+ New Task" to start.</div>';
+        listEl.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-dim);">No worktrees registered.</div>';
         return;
       }
 
@@ -689,14 +756,20 @@
       keys.forEach(k => {
         const item = registry[k];
         const activeClass = k === currentWt ? 'active' : '';
-        const statusClass = `status-${item.status || 'STAGED'}`;
+        const status = item.status || 'STAGED';
         html += `
-          <div class="wt-card ${activeClass}" onclick="selectWorktree('${k}')">
-            <div class="wt-card-title">
-              <span>${k}</span>
-              <span class="wt-status-pill ${statusClass}">${item.status || 'STAGED'}</span>
+          <div class="wt-item ${activeClass}" onclick="selectWorktree('${k}')">
+            <div class="wt-item-header">
+              <span class="wt-name">${k}</span>
+              <span class="wt-status-tag status-tag-${status}">
+                <span class="status-dot"></span>
+                <span>${status.toLowerCase().replace(/_/g, ' ')}</span>
+              </span>
             </div>
-            <div class="wt-card-branch">${item.branch || '-'} ${item.agent ? `· [${item.agent}]` : ''}</div>
+            <div class="wt-meta">
+              <span>${item.branch || '-'}</span>
+              ${item.agent ? `<span>· ${item.agent}</span>` : ''}
+            </div>
           </div>
         `;
       });
@@ -712,28 +785,26 @@
     async function selectWorktree(name) {
       currentWt = name;
       renderAll();
-      await loadSpec();
-      if (currentTab === 'diff') await loadDiff();
+      if (currentTab === 'spec') await loadSpec();
       if (currentTab === 'terminal') await loadOutput();
+      if (currentTab === 'diff') await loadDiff();
     }
 
     function updateMainPanel() {
       if (!currentWt || !registry[currentWt]) return;
       const wt = registry[currentWt];
       const isReview = wt.status === 'READY_FOR_REVIEW';
-      const isWorking = wt.status === 'WORKING';
 
-      // VPS Banner
-      const vpsBanner = document.getElementById('vps-banner');
-      if (isVps && isReview) {
-        vpsBanner.style.display = 'flex';
-        document.getElementById('banner-branch').textContent = wt.branch || 'branch';
-        document.getElementById('banner-cmd').textContent = `git fetch origin && git checkout ${wt.branch}`;
+      const reviewBar = document.getElementById('review-bar');
+      if (isReview) {
+        reviewBar.style.display = 'flex';
+        document.getElementById('banner-cmd').textContent = isVps
+          ? `git fetch origin && git checkout ${wt.branch}`
+          : `git checkout ${wt.branch}`;
       } else {
-        vpsBanner.style.display = 'none';
+        reviewBar.style.display = 'none';
       }
 
-      // Footer controls
       const spawnControls = document.getElementById('spawn-controls');
       const promptControls = document.getElementById('prompt-controls');
 
@@ -748,12 +819,13 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      document.querySelectorAll('.tab-link').forEach((b, i) => {
         b.classList.toggle('active', (i === 0 && tab === 'spec') || (i === 1 && tab === 'terminal') || (i === 2 && tab === 'diff'));
       });
-      document.getElementById('tab-spec').style.display = tab === 'spec' ? 'flex' : 'none';
+      document.getElementById('tab-spec').style.display = tab === 'spec' ? 'block' : 'none';
       document.getElementById('tab-terminal').style.display = tab === 'terminal' ? 'block' : 'none';
       document.getElementById('tab-diff').style.display = tab === 'diff' ? 'block' : 'none';
+      document.getElementById('btn-save-spec').style.display = tab === 'spec' ? 'inline-flex' : 'none';
 
       if (tab === 'spec') loadSpec();
       if (tab === 'terminal') loadOutput();
@@ -765,37 +837,71 @@
       try {
         const res = await fetch(`/api/worktrees/${currentWt}/spec`);
         const data = await res.json();
-        document.getElementById('spec-editor').value = data.spec || '';
+        document.getElementById('tab-spec').value = data.spec || '';
       } catch (err) {}
     }
 
     async function saveSpec() {
       if (!currentWt) return;
-      const spec = document.getElementById('spec-editor').value;
+      const spec = document.getElementById('tab-spec').value;
       await fetch(`/api/worktrees/${currentWt}/spec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ spec }),
       });
-      alert('Task specification saved!');
+      const btn = document.getElementById('btn-save-spec');
+      btn.textContent = 'Saved';
+      setTimeout(() => btn.textContent = 'Save Spec', 1500);
     }
 
     async function loadDiff() {
       if (!currentWt) return;
+      const diffContainer = document.getElementById('tab-diff');
       try {
         const res = await fetch(`/api/worktrees/${currentWt}/diff`);
         const data = await res.json();
-        document.getElementById('tab-diff').textContent = data.diff || 'No diff available';
-      } catch (err) {}
+        renderDiff(data.diff || '');
+      } catch (err) {
+        diffContainer.textContent = 'Failed to load diff.';
+      }
+    }
+
+    function renderDiff(rawDiff) {
+      const container = document.getElementById('tab-diff');
+      if (!rawDiff || !rawDiff.trim()) {
+        container.innerHTML = '<div style="color: var(--text-dim); padding: 10px 0;">No working changes detected against base branch.</div>';
+        return;
+      }
+
+      const lines = rawDiff.split('\n');
+      let html = '';
+      lines.forEach(line => {
+        const escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        if (line.startsWith('diff --git') || line.startsWith('index ')) {
+          html += `<div class="diff-line diff-header">${escaped}</div>`;
+        } else if (line.startsWith('@@')) {
+          html += `<div class="diff-line diff-chunk">${escaped}</div>`;
+        } else if (line.startsWith('+') && !line.startsWith('+++')) {
+          html += `<div class="diff-line diff-add">${escaped}</div>`;
+        } else if (line.startsWith('-') && !line.startsWith('---')) {
+          html += `<div class="diff-line diff-remove">${escaped}</div>`;
+        } else {
+          html += `<div class="diff-line">${escaped}</div>`;
+        }
+      });
+      container.innerHTML = html;
     }
 
     async function loadOutput() {
       if (!currentWt) return;
+      const term = document.getElementById('tab-terminal');
       try {
         const res = await fetch(`/api/worktrees/${currentWt}/output`);
         const data = await res.json();
-        document.getElementById('tab-terminal').textContent = data.output || 'No output recorded yet.';
-      } catch (err) {}
+        term.textContent = data.output || 'No output recorded.';
+      } catch (err) {
+        term.textContent = 'Worker process is currently inactive.';
+      }
     }
 
     function appendLog(text) {
@@ -807,7 +913,9 @@
     function copyBannerCmd() {
       const text = document.getElementById('banner-cmd').textContent;
       navigator.clipboard.writeText(text);
-      alert('Copied to clipboard: ' + text);
+      const original = text;
+      document.getElementById('banner-cmd').textContent = 'copied to clipboard';
+      setTimeout(() => document.getElementById('banner-cmd').textContent = original, 1500);
     }
 
     async function triggerSpawn() {
@@ -825,7 +933,7 @@
     async function triggerPrompt() {
       if (!currentWt) return;
       const prompt = document.getElementById('revision-prompt').value;
-      if (!prompt) return alert('Please enter a revision prompt');
+      if (!prompt) return;
       await fetch(`/api/worktrees/${currentWt}/prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -837,7 +945,7 @@
 
     async function triggerIntegrate() {
       if (!currentWt) return;
-      if (!confirm(`Are you sure you want to integrate ${currentWt} and merge into main?`)) return;
+      if (!confirm(`Merge ${currentWt} into main and clean up worktree?`)) return;
       await fetch(`/api/worktrees/${currentWt}/integrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -863,7 +971,7 @@
       renderAll();
     };
 
-    // Modal & Requirement Discovery
+    // Modal
     function openCreateModal() {
       document.getElementById('create-modal').style.display = 'flex';
       backToStep1();
@@ -876,22 +984,22 @@
     }
 
     function backToStep1() {
-      document.getElementById('modal-step-1').style.display = 'flex';
+      document.getElementById('modal-step-1').style.display = 'block';
       document.getElementById('modal-step-2').style.display = 'none';
       const btn = document.getElementById('btn-analyze');
       if (btn) {
         btn.disabled = false;
-        btn.textContent = '⚡ Analyze Requirements & Spec';
+        btn.textContent = 'Analyze & Generate Spec';
       }
     }
 
     async function analyzeAndProceed() {
       const prompt = document.getElementById('modal-prompt').value.trim();
-      if (!prompt) return alert('Please enter what this new task is about.');
+      if (!prompt) return alert('Please enter a description for the task.');
 
       const btn = document.getElementById('btn-analyze');
       btn.disabled = true;
-      btn.textContent = '🔍 Conducting Requirement Analysis...';
+      btn.textContent = 'Analyzing requirements...';
 
       try {
         const res = await fetch('/api/analyze-task', {
@@ -907,22 +1015,14 @@
         document.getElementById('modal-branch').value = a.branch;
         document.getElementById('modal-spec').value = a.spec;
         document.getElementById('modal-analysis-reason').textContent = a.reason;
-
-        const badge = document.getElementById('modal-analysis-badge');
-        if (a.agent === 'agy') {
-          badge.className = 'analysis-badge analysis-badge-heavy';
-          badge.innerHTML = '⚡ Antigravity (High Complexity)';
-        } else {
-          badge.className = 'analysis-badge analysis-badge-light';
-          badge.innerHTML = '🚀 Kilo (Localized)';
-        }
+        document.getElementById('modal-complexity-tag').textContent = a.agent === 'agy' ? 'Antigravity (Heavy)' : 'Kilo (Fast)';
 
         document.getElementById('modal-step-1').style.display = 'none';
-        document.getElementById('modal-step-2').style.display = 'flex';
+        document.getElementById('modal-step-2').style.display = 'block';
       } catch (err) {
         alert('Analysis error: ' + err.message);
         btn.disabled = false;
-        btn.textContent = '⚡ Analyze Requirements & Spec';
+        btn.textContent = 'Analyze & Generate Spec';
       }
     }
 
@@ -930,11 +1030,11 @@
       const name = document.getElementById('modal-name').value.trim();
       const branch = document.getElementById('modal-branch').value.trim();
       const spec = document.getElementById('modal-spec').value.trim();
-      if (!name || !branch) return alert('Worktree name and branch are required');
+      if (!name || !branch) return alert('Name and branch are required');
 
       const btn = document.getElementById('btn-create-wt');
       btn.disabled = true;
-      btn.textContent = 'Creating worktree...';
+      btn.textContent = 'Creating...';
 
       try {
         const res = await fetch('/api/worktrees/create', {
@@ -952,9 +1052,14 @@
         alert('Failed to create worktree: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = '🚀 Create Worktree & Stage Spec';
+        btn.textContent = 'Create Worktree';
       }
     }
+
+    // Keyboard Shortcuts (esc to close modal)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeCreateModal();
+    });
 
     // Init
     loadStatus();
