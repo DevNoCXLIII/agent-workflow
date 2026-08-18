@@ -123,11 +123,22 @@ else
     log_warn "Herdr configuration has warnings/issues (run 'herdr config check')"
 fi
 
-# 6. Syntax Check
+# 6. Sync Web Dashboard Assets
+log_info "Syncing Web Dashboard assets..."
+mkdir -p "${HOME}/.local/share/schwi/web/public"
+cp "${SCRIPT_DIR}/web/server.js" "${HOME}/.local/share/schwi/web/server.js"
+cp -r "${SCRIPT_DIR}/web/public/"* "${HOME}/.local/share/schwi/web/public/"
+log_success "Synced Web Dashboard at ~/.local/share/schwi/web/"
+
+# 7. Syntax Check
 log_info "Validating syntax..."
 bash -n "${HOME}/.local/bin/schwi-runner"
 bash -n "${SCRIPT_DIR}/install.sh"
 bash -n "${SCRIPT_DIR}/update.sh"
+if command -v node >/dev/null 2>&1; then
+    node --check "${SCRIPT_DIR}/web/server.js"
+    log_success "Node.js Web Server validated"
+fi
 log_success "All scripts validated successfully"
 
 echo ""

@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schwi Swarm Controller</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-border: #30363d;
+      --panel-hover: #1f242c;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #1f6feb;
+      --green: #2ea043;
+      --green-glow: #238636;
+      --gold: #d29922;
+      --gold-bg: rgba(210, 153, 34, 0.15);
+      --red: #f85149;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--panel-border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-icon {
+      background: linear-gradient(135deg, #58a6ff, #bc8cff);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 800;
+    }
+
+    .header-badges {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid var(--panel-border);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .badge-vps {
+      background: rgba(88, 166, 255, 0.15);
+      border-color: rgba(88, 166, 255, 0.4);
+      color: #58a6ff;
+      cursor: pointer;
+    }
+
+    .badge-tailscale {
+      background: rgba(46, 160, 67, 0.15);
+      border-color: rgba(46, 160, 67, 0.4);
+      color: #3fb950;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .dot-pulse {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.15); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Layout */
+    .app-container {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--panel-border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .sidebar-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .sidebar-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    .btn {
+      background: var(--panel-border);
+      color: var(--text);
+      border: 1px solid transparent;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover { background: #3c444d; }
+    .btn-primary { background: var(--green-glow); color: #fff; border-color: rgba(255, 255, 255, 0.1); }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-accent { background: var(--accent-hover); color: #fff; }
+    .btn-accent:hover { background: #388bfd; }
+    .btn-danger { background: rgba(248, 81, 73, 0.15); color: #f85149; border-color: rgba(248, 81, 73, 0.3); }
+    .btn-danger:hover { background: var(--red); color: #fff; }
+    .btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+
+    .worktree-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .wt-card {
+      background: var(--bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .wt-card:hover { border-color: var(--text-muted); }
+    .wt-card.active {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.05);
+    }
+
+    .wt-card-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .wt-card-branch {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .wt-status-pill {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .status-STAGED { background: rgba(139, 148, 158, 0.2); color: #8b949e; }
+    .status-WORKING { background: rgba(88, 166, 255, 0.2); color: #58a6ff; }
+    .status-READY_FOR_REVIEW { background: var(--gold-bg); color: var(--gold); border: 1px solid rgba(210, 153, 34, 0.4); }
+    .status-CLEANED_UP { background: rgba(255, 255, 255, 0.05); color: #484f58; }
+    .status-BLOCKED { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+
+    /* Main Panel */
+    .main-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--bg);
+    }
+
+    /* VPS Notification Banner */
+    .vps-review-banner {
+      background: linear-gradient(90deg, rgba(210, 153, 34, 0.15), rgba(46, 160, 67, 0.1));
+      border-bottom: 1px solid rgba(210, 153, 34, 0.3);
+      padding: 14px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .vps-banner-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .vps-banner-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #f0883e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .code-copy-box {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #58a6ff;
+    }
+
+    /* Content Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 10px;
+      padding: 10px 20px 0;
+      background: var(--panel);
+      border-bottom: 1px solid var(--panel-border);
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--text);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-content {
+      flex: 1;
+      min-height: 0;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-textarea {
+      width: 100%;
+      height: 100%;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+    }
+
+    .editor-textarea:focus { border-color: var(--accent); }
+
+    .terminal-window {
+      background: #06090f;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #388bfd;
+      flex: 1;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .diff-window {
+      background: #06090f;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text);
+      flex: 1;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    /* Action Footer */
+    .action-footer {
+      background: var(--panel);
+      border-top: 1px solid var(--panel-border);
+      padding: 12px 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .prompt-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .prompt-input:focus { border-color: var(--accent); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    .modal-card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      width: 500px;
+      max-width: 90vw;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .form-input {
+      background: var(--bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 0.85rem;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">SCHWI</div>
+      <span>Swarm Controller</span>
+    </div>
+    <div class="header-badges">
+      <div id="vps-badge" class="badge badge-vps" title="Click to toggle VPS mode">
+        <div class="dot dot-pulse"></div>
+        <span id="vps-label">VPS Mode Active</span>
+      </div>
+      <div class="badge badge-tailscale">
+        <div class="dot"></div>
+        <span id="ts-label">Tailscale Protected</span>
+      </div>
+      <div class="badge">
+        <span>Active Workers: <b id="active-count">0</b></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Worktrees</span>
+        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New Task</button>
+      </div>
+      <div class="worktree-list" id="wt-list">
+        <div style="padding: 20px; text-align: center; color: var(--text-muted);">
+          Loading worktrees...
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-panel" id="main-panel">
+      <!-- VPS Banner (conditional) -->
+      <div id="vps-banner" class="vps-review-banner" style="display: none;">
+        <div class="vps-banner-header">
+          <div class="vps-banner-title">
+            <span>🚀 Checkout <code id="banner-branch">feat/xxx</code> and test, tell me to integrate now or reply with your revision</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="triggerIntegrate()">🚀 Integrate Now</button>
+        </div>
+        <div class="code-copy-box">
+          <span id="banner-cmd">git fetch origin && git checkout feat/xxx</span>
+          <button class="btn btn-sm" onclick="copyBannerCmd()">📋 Copy</button>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('spec')">Task Spec (.schwi-task.md)</button>
+        <button class="tab-btn" onclick="switchTab('terminal')">Live Agent Output</button>
+        <button class="tab-btn" onclick="switchTab('diff')">Git Diff</button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="tab-content">
+        <div id="tab-spec" style="height: 100%; display: flex; flex-direction: column; gap: 10px;">
+          <textarea id="spec-editor" class="editor-textarea" placeholder="Task specification..."></textarea>
+          <div style="display: flex; justify-content: flex-end;">
+            <button class="btn btn-accent btn-sm" onclick="saveSpec()">💾 Save Spec</button>
+          </div>
+        </div>
+        <div id="tab-terminal" class="terminal-window" style="display: none;"></div>
+        <div id="tab-diff" class="diff-window" style="display: none;"></div>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="action-footer" id="action-footer">
+        <div id="spawn-controls" style="display: flex; gap: 8px; width: 100%; align-items: center;">
+          <select id="agent-select" class="form-input" style="width: 140px;">
+            <option value="kilo">Kilo (Lightweight)</option>
+            <option value="agy">Antigravity (Heavy)</option>
+          </select>
+          <input type="text" id="spawn-prompt" class="prompt-input" placeholder="Enter task prompt for worker..." value="Execute task in .schwi-task.md and verify">
+          <button class="btn btn-primary" onclick="triggerSpawn()">⚡ Spawn Worker</button>
+        </div>
+        <div id="prompt-controls" style="display: none; gap: 8px; width: 100%; align-items: center;">
+          <input type="text" id="revision-prompt" class="prompt-input" placeholder="Type revision feedback for worker...">
+          <button class="btn btn-accent" onclick="triggerPrompt()">💬 Send Revision</button>
+          <button class="btn btn-danger btn-sm" onclick="triggerDiscard()">❌ Discard</button>
+          <button class="btn btn-primary" onclick="triggerIntegrate()">🚀 Integrate Now</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Create Worktree Modal -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal-card">
+      <h3 style="font-size: 1.1rem; font-weight: 700;">Create Isolated Worktree Task</h3>
+      <div class="form-group">
+        <label class="form-label">Worktree Name</label>
+        <input type="text" id="modal-name" class="form-input" placeholder="wt-feature-auth">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Git Branch</label>
+        <input type="text" id="modal-branch" class="form-input" placeholder="feat/auth-oauth">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Initial Task Spec</label>
+        <textarea id="modal-spec" class="editor-textarea" style="height: 120px;" placeholder="# Objectives&#10;- Implement feature&#10;&#10;# Acceptance Criteria&#10;- Tests pass"></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+        <button class="btn" onclick="closeCreateModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitCreateWorktree()">Create Worktree</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let registry = {};
+    let isVps = true;
+    let currentWt = null;
+    let currentTab = 'spec';
+
+    // Connect SSE
+    function connectEvents() {
+      const evtSource = new EventSource('/api/events');
+      evtSource.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'init' || msg.type === 'registry') {
+            registry = msg.data || msg.registry || {};
+            isVps = msg.is_vps ?? true;
+            renderAll();
+          } else if (msg.type === 'log') {
+            appendLog(msg.data.text);
+          }
+        } catch (err) {}
+      };
+      evtSource.onerror = () => {
+        setTimeout(connectEvents, 3000);
+      };
+    }
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        registry = data.registry || {};
+        isVps = data.is_vps;
+        if (data.tailscale_ip) {
+          document.getElementById('ts-label').textContent = `Tailscale: ${data.tailscale_ip}`;
+        }
+        renderAll();
+      } catch (err) {}
+    }
+
+    function renderAll() {
+      // Header badges
+      const vpsBadge = document.getElementById('vps-badge');
+      const vpsLabel = document.getElementById('vps-label');
+      if (isVps) {
+        vpsBadge.className = 'badge badge-vps';
+        vpsLabel.textContent = 'VPS Mode Active';
+      } else {
+        vpsBadge.className = 'badge';
+        vpsLabel.textContent = 'Local Mode';
+      }
+
+      // Count active
+      let active = 0;
+      Object.values(registry).forEach(item => {
+        if (item.status === 'WORKING') active++;
+      });
+      document.getElementById('active-count').textContent = active;
+
+      // Render Worktree list
+      const listEl = document.getElementById('wt-list');
+      const keys = Object.keys(registry);
+
+      if (keys.length === 0) {
+        listEl.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted);">No worktrees created. Click "+ New Task" to start.</div>';
+        return;
+      }
+
+      let html = '';
+      keys.forEach(k => {
+        const item = registry[k];
+        const activeClass = k === currentWt ? 'active' : '';
+        const statusClass = `status-${item.status || 'STAGED'}`;
+        html += `
+          <div class="wt-card ${activeClass}" onclick="selectWorktree('${k}')">
+            <div class="wt-card-title">
+              <span>${k}</span>
+              <span class="wt-status-pill ${statusClass}">${item.status || 'STAGED'}</span>
+            </div>
+            <div class="wt-card-branch">${item.branch || '-'} ${item.agent ? `· [${item.agent}]` : ''}</div>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
+
+      if (!currentWt && keys.length > 0) {
+        selectWorktree(keys[0]);
+      } else if (currentWt) {
+        updateMainPanel();
+      }
+    }
+
+    async function selectWorktree(name) {
+      currentWt = name;
+      renderAll();
+      await loadSpec();
+      if (currentTab === 'diff') await loadDiff();
+      if (currentTab === 'terminal') await loadOutput();
+    }
+
+    function updateMainPanel() {
+      if (!currentWt || !registry[currentWt]) return;
+      const wt = registry[currentWt];
+      const isReview = wt.status === 'READY_FOR_REVIEW';
+      const isWorking = wt.status === 'WORKING';
+
+      // VPS Banner
+      const vpsBanner = document.getElementById('vps-banner');
+      if (isVps && isReview) {
+        vpsBanner.style.display = 'flex';
+        document.getElementById('banner-branch').textContent = wt.branch || 'branch';
+        document.getElementById('banner-cmd').textContent = `git fetch origin && git checkout ${wt.branch}`;
+      } else {
+        vpsBanner.style.display = 'none';
+      }
+
+      // Footer controls
+      const spawnControls = document.getElementById('spawn-controls');
+      const promptControls = document.getElementById('prompt-controls');
+
+      if (wt.status === 'STAGED') {
+        spawnControls.style.display = 'flex';
+        promptControls.style.display = 'none';
+      } else {
+        spawnControls.style.display = 'none';
+        promptControls.style.display = 'flex';
+      }
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.toggle('active', (i === 0 && tab === 'spec') || (i === 1 && tab === 'terminal') || (i === 2 && tab === 'diff'));
+      });
+      document.getElementById('tab-spec').style.display = tab === 'spec' ? 'flex' : 'none';
+      document.getElementById('tab-terminal').style.display = tab === 'terminal' ? 'block' : 'none';
+      document.getElementById('tab-diff').style.display = tab === 'diff' ? 'block' : 'none';
+
+      if (tab === 'spec') loadSpec();
+      if (tab === 'terminal') loadOutput();
+      if (tab === 'diff') loadDiff();
+    }
+
+    async function loadSpec() {
+      if (!currentWt) return;
+      try {
+        const res = await fetch(`/api/worktrees/${currentWt}/spec`);
+        const data = await res.json();
+        document.getElementById('spec-editor').value = data.spec || '';
+      } catch (err) {}
+    }
+
+    async function saveSpec() {
+      if (!currentWt) return;
+      const spec = document.getElementById('spec-editor').value;
+      await fetch(`/api/worktrees/${currentWt}/spec`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spec }),
+      });
+      alert('Task specification saved!');
+    }
+
+    async function loadDiff() {
+      if (!currentWt) return;
+      try {
+        const res = await fetch(`/api/worktrees/${currentWt}/diff`);
+        const data = await res.json();
+        document.getElementById('tab-diff').textContent = data.diff || 'No diff available';
+      } catch (err) {}
+    }
+
+    async function loadOutput() {
+      if (!currentWt) return;
+      try {
+        const res = await fetch(`/api/worktrees/${currentWt}/output`);
+        const data = await res.json();
+        document.getElementById('tab-terminal').textContent = data.output || 'No output recorded yet.';
+      } catch (err) {}
+    }
+
+    function appendLog(text) {
+      const term = document.getElementById('tab-terminal');
+      term.textContent += text;
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function copyBannerCmd() {
+      const text = document.getElementById('banner-cmd').textContent;
+      navigator.clipboard.writeText(text);
+      alert('Copied to clipboard: ' + text);
+    }
+
+    async function triggerSpawn() {
+      if (!currentWt) return;
+      const agent = document.getElementById('agent-select').value;
+      const prompt = document.getElementById('spawn-prompt').value;
+      await fetch(`/api/worktrees/${currentWt}/spawn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent, prompt }),
+      });
+      switchTab('terminal');
+    }
+
+    async function triggerPrompt() {
+      if (!currentWt) return;
+      const prompt = document.getElementById('revision-prompt').value;
+      if (!prompt) return alert('Please enter a revision prompt');
+      await fetch(`/api/worktrees/${currentWt}/prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      document.getElementById('revision-prompt').value = '';
+      switchTab('terminal');
+    }
+
+    async function triggerIntegrate() {
+      if (!currentWt) return;
+      if (!confirm(`Are you sure you want to integrate ${currentWt} and merge into main?`)) return;
+      await fetch(`/api/worktrees/${currentWt}/integrate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merge_to: 'main' }),
+      });
+    }
+
+    async function triggerDiscard() {
+      if (!currentWt) return;
+      if (!confirm(`Discard worktree ${currentWt}?`)) return;
+      await fetch(`/api/worktrees/${currentWt}/cleanup`, { method: 'POST' });
+    }
+
+    // Toggle VPS Mode
+    document.getElementById('vps-badge').onclick = async () => {
+      const next = !isVps;
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_vps: next }),
+      });
+      isVps = next;
+      renderAll();
+    };
+
+    // Modal
+    function openCreateModal() {
+      document.getElementById('create-modal').style.display = 'flex';
+    }
+
+    function closeCreateModal() {
+      document.getElementById('create-modal').style.display = 'none';
+    }
+
+    async function submitCreateWorktree() {
+      const name = document.getElementById('modal-name').value.trim();
+      const branch = document.getElementById('modal-branch').value.trim();
+      const spec = document.getElementById('modal-spec').value.trim();
+      if (!name || !branch) return alert('Name and branch are required');
+
+      await fetch('/api/worktrees/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, branch, spec }),
+      });
+
+      closeCreateModal();
+      currentWt = name;
+    }
+
+    // Init
+    loadStatus();
+    connectEvents();
+  </script>
+</body>
+</html>

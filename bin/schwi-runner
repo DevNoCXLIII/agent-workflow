@@ -12,11 +12,15 @@ REPO_ROOT="$(get_repo_root)"
 SCHWI_DIR="${REPO_ROOT}/.schwi"
 WORKTREES_DIR="${REPO_ROOT}/.worktrees"
 REGISTRY_FILE="${SCHWI_DIR}/registry.json"
+CONFIG_FILE="${SCHWI_DIR}/config.json"
 
 init_env() {
     mkdir -p "${SCHWI_DIR}" "${WORKTREES_DIR}"
     if [[ ! -f "${REGISTRY_FILE}" ]] || ! jq empty "${REGISTRY_FILE}" 2>/dev/null; then
         echo "{}" > "${REGISTRY_FILE}"
+    fi
+    if [[ ! -f "${CONFIG_FILE}" ]] || ! jq empty "${CONFIG_FILE}" 2>/dev/null; then
+        echo '{"is_vps": true, "port": 3456}' > "${CONFIG_FILE}"
     fi
 }
 
@@ -27,6 +31,98 @@ update_registry() {
     tmp_reg="$(mktemp "${TMPDIR:-/tmp}/schwi-reg.XXXXXX")"
     jq --arg wt "$wt_name" --argjson patch "$json_patch" \
        '.[$wt] = ((.[$wt] // {}) * $patch)' "${REGISTRY_FILE}" > "${tmp_reg}" && mv "${tmp_reg}" "${REGISTRY_FILE}"
+}
+
+is_vps() {
+    if [[ "${SCHWI_IS_VPS:-}" == "1" || "${SCHWI_IS_VPS:-}" == "true" || "${SCHWI_ENV:-}" == "vps" ]]; then
+        return 0
+    fi
+    if [[ "${SCHWI_IS_VPS:-}" == "0" || "${SCHWI_IS_VPS:-}" == "false" || "${SCHWI_ENV:-}" == "local" ]]; then
+        return 1
+    fi
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local val
+        val=$(jq -r '.is_vps // empty' "$CONFIG_FILE" 2>/dev/null || true)
+        if [[ "$val" == "true" || "$val" == "1" ]]; then
+            return 0
+        elif [[ "$val" == "false" || "$val" == "0" ]]; then
+            return 1
+        fi
+    fi
+    # Default to true on non-Darwin linux headless environments if configured
+    return 0
+}
+
+get_tailscale_ip() {
+    if command -v tailscale >/dev/null 2>&1; then
+        local ts_ip
+        ts_ip=$(tailscale ip -4 2>/dev/null | head -n 1 || true)
+        if [[ -n "$ts_ip" ]]; then
+            echo "$ts_ip"
+            return 0
+        fi
+    fi
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local cfg_ip
+        cfg_ip=$(jq -r '.tailscale_ip // empty' "$CONFIG_FILE" 2>/dev/null || true)
+        if [[ -n "$cfg_ip" && "$cfg_ip" != "null" ]]; then
+            echo "$cfg_ip"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+handle_worker_completion() {
+    local wt_name="$1"
+    local worker_name="$2"
+    local now_iso="$3"
+    local wt_path="${WORKTREES_DIR}/${wt_name}"
+    local branch_name=""
+
+    if [[ -f "$REGISTRY_FILE" ]]; then
+        branch_name=$(jq -r --arg wt "$wt_name" '.[$wt].branch // empty' "$REGISTRY_FILE" 2>/dev/null || true)
+    fi
+
+    local done_entry
+    done_entry=$(jq -n \
+        --arg now "$now_iso" \
+        '{
+            status: "READY_FOR_REVIEW",
+            updated_at: $now,
+            completed_at: $now
+        }')
+    update_registry "$wt_name" "$done_entry"
+
+    if is_vps; then
+        echo "==> [VPS Mode] Synchronizing worktree changes to remote..."
+        if git -C "$wt_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            # Commit any uncommitted changes made by worker
+            if [[ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]]; then
+                git -C "$wt_path" add -A
+                git -C "$wt_path" commit -m "feat(${wt_name}): implement changes via ${worker_name}" 2>/dev/null || true
+            fi
+
+            # Push branch to origin if remote exists
+            if git -C "$wt_path" remote get-url origin >/dev/null 2>&1 && [[ -n "$branch_name" ]]; then
+                if git -C "$wt_path" push -u origin "${branch_name}" >/dev/null 2>&1; then
+                    echo "✓ Pushed branch '${branch_name}' to remote origin"
+                    update_registry "$wt_name" "$(jq -n --arg now "$now_iso" '{vps_pushed: true, updated_at: $now}')"
+                else
+                    echo "Warning: Could not push branch '${branch_name}' to remote origin." >&2
+                fi
+            fi
+        fi
+
+        echo ""
+        echo "================================================================================"
+        echo "🚀 Checkout ${branch_name} and test, tell me to integrate now or reply with your revision"
+        echo "   Command: git fetch origin && git checkout ${branch_name}"
+        echo "================================================================================"
+        echo ""
+    else
+        echo "✅ Worker '${worker_name}' completed execution. Worktree '${wt_name}' status: READY_FOR_REVIEW"
+    fi
 }
 
 usage() {
@@ -52,6 +148,12 @@ Commands:
   list          List all managed worktrees and their status
   status        Show detailed status of a worktree
                 --wt <wt-name>
+
+  serve         Start the lightweight Tailscale-secured Web UI dashboard
+                [--port <port>] [--host <host>] [--tailscale]
+
+  config        View or update runtime configuration (e.g. VPS mode)
+                [--vps <true|false>] [--port <port>]
 
 Options:
   -h, --help    Show this help message
@@ -113,7 +215,6 @@ cmd_create_wt() {
     elif [[ -n "$spec_text" ]]; then
         echo "$spec_text" > "$task_file"
     elif [[ ! -t 0 ]]; then
-        # Read from stdin if piped
         cat > "$task_file"
     elif [[ ! -f "$task_file" ]]; then
         cat <<TASKEOF > "$task_file"
@@ -212,7 +313,6 @@ cmd_spawn_worker() {
 
     echo "==> Splitting Herdr pane for worktree '${wt_name}'..."
 
-    # Determine pane to split from
     local split_cmd
     if [[ -n "${HERDR_PANE_ID:-}" ]]; then
         split_cmd="herdr pane split --current --direction right --no-focus --cwd \"$wt_path\""
@@ -255,7 +355,6 @@ cmd_spawn_worker() {
         return 1
     fi
 
-    # Update status to WORKING
     local working_entry
     working_entry=$(jq -n \
         --arg pane "$pane_id" \
@@ -274,16 +373,7 @@ cmd_spawn_worker() {
     if herdr agent prompt "$worker_name" "$prompt" --wait --until idle --until done --timeout "$prompt_timeout"; then
         local done_iso
         done_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-        local done_entry
-        done_entry=$(jq -n \
-            --arg now "$done_iso" \
-            '{
-                status: "READY_FOR_REVIEW",
-                updated_at: $now,
-                completed_at: $now
-            }')
-        update_registry "$wt_name" "$done_entry"
-        echo "✅ Worker '${worker_name}' completed execution. Worktree '${wt_name}' status: READY_FOR_REVIEW"
+        handle_worker_completion "$wt_name" "$worker_name" "$done_iso"
     else
         local err_iso
         err_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -334,8 +424,7 @@ cmd_prompt_worker() {
     if herdr agent prompt "$worker_name" "$prompt" --wait --until idle --until done --timeout "$timeout"; then
         local done_iso
         done_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-        update_registry "$wt_name" "$(jq -n --arg now "$done_iso" '{status: "READY_FOR_REVIEW", updated_at: $now, completed_at: $now}')"
-        echo "✅ Worker '${worker_name}' finished revision. Worktree '${wt_name}' status: READY_FOR_REVIEW"
+        handle_worker_completion "$wt_name" "$worker_name" "$done_iso"
     else
         echo "⚠️ Worker prompt failed or timed out." >&2
         return 1
@@ -416,6 +505,12 @@ cmd_cleanup_wt() {
         echo "Merging branch '${branch_name}' into '${merge_to}'..."
         git checkout "$merge_to"
         git merge "$branch_name" --no-edit -m "Merge branch '$branch_name' into $merge_to (schwi)"
+
+        # If on VPS, push merged target branch to origin
+        if is_vps && git remote get-url origin >/dev/null 2>&1; then
+            echo "Pushing merged '${merge_to}' branch to remote origin..."
+            git push origin "$merge_to" 2>/dev/null || true
+        fi
     fi
 
     # 3. Remove git worktree
@@ -485,6 +580,66 @@ cmd_status() {
     fi
 }
 
+cmd_config() {
+    init_env
+    local set_vps=""
+    local set_port=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --vps)
+                set_vps="$2"; shift 2 ;;
+            --port|-p)
+                set_port="$2"; shift 2 ;;
+            *)
+                echo "Error: Unknown argument: $1" >&2; return 1 ;;
+        esac
+    done
+
+    if [[ -n "$set_vps" ]]; then
+        local bool_val="true"
+        if [[ "$set_vps" == "false" || "$set_vps" == "0" ]]; then
+            bool_val="false"
+        fi
+        local tmp_cfg
+        tmp_cfg="$(mktemp "${TMPDIR:-/tmp}/schwi-cfg.XXXXXX")"
+        jq --argjson v "$bool_val" '.is_vps = $v' "$CONFIG_FILE" > "$tmp_cfg" && mv "$tmp_cfg" "$CONFIG_FILE"
+        echo "✓ Updated is_vps: $bool_val"
+    fi
+
+    if [[ -n "$set_port" ]]; then
+        local tmp_cfg
+        tmp_cfg="$(mktemp "${TMPDIR:-/tmp}/schwi-cfg.XXXXXX")"
+        jq --argjson p "$set_port" '.port = $p' "$CONFIG_FILE" > "$tmp_cfg" && mv "$tmp_cfg" "$CONFIG_FILE"
+        echo "✓ Updated port: $set_port"
+    fi
+
+    if [[ -z "$set_vps" && -z "$set_port" ]]; then
+        echo "Current Configuration (.schwi/config.json):"
+        jq . "$CONFIG_FILE"
+    fi
+}
+
+cmd_serve() {
+    init_env
+    local server_script="${REPO_ROOT}/web/server.js"
+    if [[ ! -f "$server_script" ]]; then
+        server_script="${HOME}/.local/share/schwi/web/server.js"
+    fi
+
+    if [[ ! -f "$server_script" ]]; then
+        echo "Error: Web server script not found at ${REPO_ROOT}/web/server.js" >&2
+        return 1
+    fi
+
+    if ! command -v node >/dev/null 2>&1; then
+        echo "Error: Node.js runtime is required to run the Web UI controller." >&2
+        return 1
+    fi
+
+    exec node "$server_script" "$@"
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
@@ -509,6 +664,10 @@ main() {
             cmd_list "$@" ;;
         status)
             cmd_status "$@" ;;
+        serve)
+            cmd_serve "$@" ;;
+        config)
+            cmd_config "$@" ;;
         -h|--help|help)
             usage ;;
         *)

@@ -165,11 +165,21 @@ if [[ "$OS" == "Darwin" ]]; then
 fi
 log_success "Deployed agent rules across agent configurations"
 
-# 6. Initialize local directory structures and gitignore
+# 6. Deploy Web UI Assets
+log_info "Deploying Web Dashboard assets..."
+mkdir -p "${HOME}/.local/share/schwi/web/public"
+cp "${SCRIPT_DIR}/web/server.js" "${HOME}/.local/share/schwi/web/server.js"
+cp -r "${SCRIPT_DIR}/web/public/"* "${HOME}/.local/share/schwi/web/public/"
+log_success "Deployed Web Dashboard to ~/.local/share/schwi/web/"
+
+# 7. Initialize local directory structures and gitignore
 log_info "Initializing workspace structures..."
 mkdir -p "${HOME}/.schwi" "${HOME}/.worktrees"
 if [[ ! -f "${HOME}/.schwi/registry.json" ]] || ! jq empty "${HOME}/.schwi/registry.json" 2>/dev/null; then
     echo "{}" > "${HOME}/.schwi/registry.json"
+fi
+if [[ ! -f "${HOME}/.schwi/config.json" ]] || ! jq empty "${HOME}/.schwi/config.json" 2>/dev/null; then
+    echo '{"is_vps": true, "port": 3456}' > "${HOME}/.schwi/config.json"
 fi
 
 if [[ -f "${HOME}/.gitignore" ]]; then
@@ -181,13 +191,17 @@ else
 .worktrees/
 EOF
 fi
-log_success "Workspace registry and .gitignore configured"
+log_success "Workspace registry, config, and .gitignore configured"
 
-# 7. Verification & Syntax validation
+# 8. Verification & Syntax validation
 log_info "Running validation tests..."
 bash -n "${HOME}/.local/bin/schwi-runner"
 bash -n "${SCRIPT_DIR}/install.sh"
 bash -n "${SCRIPT_DIR}/update.sh"
+if command -v node >/dev/null 2>&1; then
+    node --check "${SCRIPT_DIR}/web/server.js"
+    log_success "Node.js Web Server validated"
+fi
 log_success "All scripts validated successfully"
 
 echo ""

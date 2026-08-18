@@ -6,7 +6,7 @@ description: >-
 
 # `/schwi` Swarm Orchestration Skill
 
-When the user starts a prompt with `/schwi`, switch into the **Schwi Swarm Orchestrator Engine**. You manage multi-phase requirement gathering, git worktree isolation, complexity routing between agent engines, and completion verification queues.
+When the user starts a prompt with `/schwi`, switch into the **Schwi Swarm Orchestrator Engine**. You manage multi-phase requirement gathering, git worktree isolation, complexity routing between agent engines, completion verification queues, and the Tailscale-secured VPS remote git workflow.
 
 ---
 
@@ -23,7 +23,7 @@ Do NOT write code or launch background workers yet. Enter the **3-Phase Discover
 2. Run `schwi-runner create-wt --name <wt-name> --branch feat/<feature-name>`.
 3. Write the finalized specification into `.worktrees/<wt-name>/.schwi-task.md`.
 4. Inform the user:
-   > *"Worktree `<wt-name>` staged with spec at `.worktrees/<wt-name>/.schwi-task.md`. Ready for execution via `/schwi work <wt-name>`."*
+   > *"Worktree `<wt-name>` staged with spec at `.worktrees/<wt-name>/.schwi-task.md`. Ready for execution via `/schwi work <wt-name>` or the Web UI."*
 
 ---
 
@@ -46,7 +46,7 @@ For each worktree:
 
 ---
 
-## 3. Serial Verification Queue & Resolution
+## 3. Serial Verification Queue & VPS Git Workflow
 
 Because multiple workers may finish concurrently, process completed workers **serially**:
 
@@ -56,9 +56,20 @@ When a worker finishes (`READY_FOR_REVIEW`):
    ```bash
    schwi-runner read-output --wt <wt-name> --lines 100
    ```
-3. Run verification tests locally in that worktree (`.worktrees/<wt-name>`).
-4. Present the review summary directly to the user:
 
+### A. If on VPS (`is_vps` is active):
+The worktree branch has been auto-committed and pushed to `origin`. Present the exact remote test message:
+
+```text
+🚀 Worktree <wt-name> completed. Branch pushed to remote origin.
+
+Checkout feat/<feature-name> and test, tell me to integrate now or reply with your revision.
+
+Local Test Command:
+git fetch origin && git checkout feat/<feature-name>
+```
+
+### B. If running Locally:
 ```text
 ✅ Worktree <wt-name> completed and verified.
 Engine: <kilo|agy>
@@ -66,22 +77,32 @@ Summary of changes:
 <summary of file changes and test results>
 
 Options:
-- Reply "Yes" or "Merge" to run integration tests, merge to target branch, and clean up worktree.
+- Reply "integrate now" or "merge" to integrate into main.
 - Reply with requested revisions to send feedback to the worker.
 ```
 
 ---
 
-## 4. Direct Feedback Mode (No `/schwi` Prefix)
+## 4. Direct Feedback & Integration Loop
 
-- **If the user replies with revision requests (without `/schwi`) while a worktree is in review:**
+- **If the user replies with revision requests while a worktree is in review:**
   - Do NOT restart the creation workflow.
   - Forward the prompt directly to that worktree's worker:
     ```bash
     schwi-runner prompt-worker --wt <wt-name> --prompt "<user_revision>"
     ```
-  - Wait for the worker to complete and present the updated verification summary.
+  - On VPS, once the worker finishes revision, it auto-pushes the update and informs the user again to test.
 
-- **If the user replies "Yes" / "Merge":**
-  - Run `schwi-runner cleanup-wt --wt <wt-name> --merge-to staging` (or target branch).
+- **If the user replies "integrate now", "integrate", "yes", or "merge":**
+  - Run `schwi-runner cleanup-wt --wt <wt-name> --merge-to main` (or target branch).
+  - On VPS, this automatically merges the branch and pushes the updated `main` to `origin`.
   - Pop the next completed worker from the queue and present its review.
+
+---
+
+## 5. Web Dashboard (`schwi-runner serve`)
+To access the swarm through the zero-latency Web UI over Tailscale:
+```bash
+schwi-runner serve --tailscale --port 3456
+```
+Access in your browser at `http://<tailscale-ip>:3456`.

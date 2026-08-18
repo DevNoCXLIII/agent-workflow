@@ -11,7 +11,11 @@ Supports both **macOS** (Apple Silicon & Intel) and **Linux**.
 ```text
 ~/agent-workflow/
 ├── bin/
-│   └── schwi-runner          # Headless orchestration CLI runner
+│   └── schwi-runner          # Headless orchestration CLI runner & web server gateway
+├── web/
+│   ├── server.js             # Zero-dependency Node.js HTTP/SSE server (Tailscale-isolated)
+│   └── public/
+│       └── index.html        # Lightweight Single-Page Web Dashboard (<40KB)
 ├── skills/
 │   └── schwi/
 │       └── SKILL.md          # /schwi Agent Skill definition (Kilo / Claude / Antigravity standard)
@@ -36,9 +40,11 @@ Supports both **macOS** (Apple Silicon & Intel) and **Linux**.
 - **Agents:**
   - `kilo` (Kilo Code CLI)
   - `agy` (Antigravity CLI)
+- **Node.js (Optional for Web Dashboard):**
+  - Standard Node.js runtime (no npm dependencies required).
 
 ### Installation
-Run the installer to deploy `schwi-runner`, skill directories (`skills/schwi/SKILL.md`), runtime rules, and Herdr integrations:
+Run the installer to deploy `schwi-runner`, skill directories (`skills/schwi/SKILL.md`), runtime rules, web dashboard assets, and Herdr integrations:
 
 ```bash
 cd ~/agent-workflow
@@ -55,15 +61,38 @@ cd ~/agent-workflow
 
 ---
 
-## Platform & Shell Support
+## Web UI Dashboard (Bypass SSH Latency)
 
-- **macOS (Darwin):**
-  - Automatic detection for Apple Silicon (`/opt/homebrew/bin`) and Intel (`/usr/local/bin`) Homebrew paths.
-  - Deploys skills and rules across `~/.config/kilo`, `~/Library/Application Support/kilo`, `~/.claude`, `~/.gemini`, and `~/.agents`.
-  - Configures for default macOS shell (`zsh` with `~/.zshrc` / `~/.zprofile`) and `bash`.
-- **Linux:**
-  - Deploys to XDG standards (`~/.config/kilo`, `~/.claude`, `~/.gemini/config`, `~/.agents`).
-  - Supports `bash` (`~/.bashrc`) and `zsh`.
+Start the ultra-lightweight Web Dashboard to monitor worktrees, view live agent terminal transcripts, edit task specifications, and trigger 1-click merges with **zero keystroke latency**:
+
+```bash
+schwi-runner serve --tailscale --port 3456
+```
+
+### Tailscale Access Control & Security
+- The web server automatically detects and binds to your private **Tailscale IP** (`100.x.y.z`) or `127.0.0.1`.
+- Built-in application-level IP filtering blocks any unauthorized traffic outside the Tailscale CGNAT subnet (`100.64.0.0/10`) and localhost.
+- Access the web interface from your local laptop or phone:
+  `http://<tailscale-vps-ip>:3456`
+
+---
+
+## VPS Git Workflow (Local Testing from Remote VPS)
+
+When running on a VPS (`is_vps: true` in `.schwi/config.json` or `SCHWI_IS_VPS=true`):
+
+1. **Automatic Remote Push:** Once a worker finishes task execution in an isolated worktree (`.worktrees/<wt-name>`), `schwi-runner` auto-commits the changes and pushes the branch to `origin <branch-name>`.
+2. **Review Notification:** The runner and Web UI prompt:
+   > 🚀 **Checkout `feat/xxx` and test, tell me to integrate now or reply with your revision**
+   > `git fetch origin && git checkout feat/xxx`
+3. **Local Testing:** You pull and test the branch locally on your machine.
+4. **Integration:** Reply `integrate now` (or click **"🚀 Integrate Now"** in the Web UI) to merge into `main`, push to upstream, and clean up the worktree.
+
+To toggle VPS mode:
+```bash
+schwi-runner config --vps true   # Enable VPS remote push workflow
+schwi-runner config --vps false  # Switch to local worktree mode
+```
 
 ---
 
@@ -77,7 +106,6 @@ Skills are organized in directory packages compliant with Kilo Code, Claude Code
   - `~/.claude/skills/schwi/SKILL.md`
   - `~/.gemini/config/skills/schwi/SKILL.md`
   - `~/.agents/skills/schwi/SKILL.md`
-- **Metadata:** Frontmatter with `name` and `description` enabling progressive disclosure.
 
 ### 2. Runtime Rules Discovery
 - **Antigravity:** `~/.gemini/config/rules/*.md`, `GEMINI.md`, `AGENTS.md`
@@ -85,7 +113,7 @@ Skills are organized in directory packages compliant with Kilo Code, Claude Code
 - **Isolated Worktrees:** Auto-seeded with `AGENTS.md` upon creation.
 
 ### 3. `schwi-runner` CLI
-The headless runner executes worktree management and agent operations:
+The headless runner executes worktree management, agent operations, and web serving:
 
 - `schwi-runner create-wt --name <wt-name> --branch <branch-name> [--spec <spec>]`
 - `schwi-runner spawn-worker --wt <wt-name> --agent <agy|kilo> --prompt <prompt>`
@@ -94,6 +122,8 @@ The headless runner executes worktree management and agent operations:
 - `schwi-runner cleanup-wt --wt <wt-name> [--merge-to <branch>]`
 - `schwi-runner list`
 - `schwi-runner status --wt <wt-name>`
+- `schwi-runner serve [--port <port>] [--host <host>] [--tailscale]`
+- `schwi-runner config [--vps <true|false>] [--port <port>]`
 
 ### 4. `/schwi` Chat Workflow
 In your AI chat (Kilo / Claude / Antigravity):
