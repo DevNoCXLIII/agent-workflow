@@ -71,14 +71,8 @@
       color: var(--text);
     }
 
-    .brand-sep {
-      color: var(--text-dim);
-    }
-
-    .brand-sub {
-      color: var(--text-muted);
-      font-weight: 400;
-    }
+    .brand-sep { color: var(--text-dim); }
+    .brand-sub { color: var(--text-muted); font-weight: 400; }
 
     .header-meta {
       display: flex;
@@ -217,14 +211,8 @@
       gap: 4px;
     }
 
-    .wt-item:hover {
-      background: var(--bg-surface-elevated);
-    }
-
-    .wt-item.active {
-      background: var(--bg-surface-elevated);
-      border-color: var(--border-focus);
-    }
+    .wt-item:hover { background: var(--bg-surface-elevated); }
+    .wt-item.active { background: var(--bg-surface-elevated); border-color: var(--border-focus); }
 
     .wt-item-header {
       display: flex;
@@ -269,7 +257,7 @@
       background: var(--bg);
     }
 
-    /* Review Notice Bar (VPS & Local) */
+    /* Review Notice Bar */
     .review-bar {
       background: rgba(245, 158, 11, 0.06);
       border-bottom: 1px solid rgba(245, 158, 11, 0.2);
@@ -326,12 +314,12 @@
       padding: 11px 0;
       border-bottom: 2px solid transparent;
       transition: color 0.12s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    .tab-link:hover {
-      color: var(--text);
-    }
-
+    .tab-link:hover { color: var(--text); }
     .tab-link.active {
       color: var(--text);
       border-bottom-color: var(--accent);
@@ -362,20 +350,42 @@
       outline: none;
     }
 
-    .terminal-pane {
+    /* Live Real-time Terminal */
+    .terminal-container {
       width: 100%;
       height: 100%;
-      background: #08080a;
-      padding: 16px;
+      background: #060608;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .terminal-header {
+      height: 28px;
+      background: #0d0d11;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .terminal-screen {
+      flex: 1;
+      padding: 14px 16px;
       font-family: var(--font-mono);
       font-size: 12px;
       line-height: 1.5;
-      color: #a1a1aa;
+      color: #d4d4d8;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
     }
 
+    /* Diff View */
     .diff-container {
       width: 100%;
       height: 100%;
@@ -386,22 +396,9 @@
       line-height: 1.5;
     }
 
-    .diff-line {
-      padding: 1px 6px;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-
-    .diff-add {
-      background-color: var(--diff-add-bg);
-      color: var(--diff-add-text);
-    }
-
-    .diff-remove {
-      background-color: var(--diff-remove-bg);
-      color: var(--diff-remove-text);
-    }
-
+    .diff-line { padding: 1px 6px; white-space: pre-wrap; word-break: break-all; }
+    .diff-add { background-color: var(--diff-add-bg); color: var(--diff-add-text); }
+    .diff-remove { background-color: var(--diff-remove-bg); color: var(--diff-remove-text); }
     .diff-header {
       background-color: var(--diff-header-bg);
       color: var(--text-dim);
@@ -410,11 +407,7 @@
       border-top: 1px solid var(--border-subtle);
       padding-top: 6px;
     }
-
-    .diff-chunk {
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.05);
-    }
+    .diff-chunk { color: #38bdf8; background: rgba(56, 189, 248, 0.05); }
 
     /* Action Footer */
     footer.action-bar {
@@ -422,9 +415,16 @@
       border-top: 1px solid var(--border);
       padding: 10px 16px;
       display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .action-row {
+      display: flex;
       align-items: center;
       gap: 10px;
-      flex-shrink: 0;
+      width: 100%;
     }
 
     .input-field {
@@ -439,9 +439,7 @@
       transition: border-color 0.12s ease;
     }
 
-    .input-field:focus {
-      border-color: var(--border-focus);
-    }
+    .input-field:focus { border-color: var(--border-focus); }
 
     .select-field {
       background: var(--bg);
@@ -453,11 +451,11 @@
       outline: none;
     }
 
-    /* Minimal Command Modal (Linear / Raycast Style) */
+    /* Command Modal: Requirement Discovery */
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.75);
       backdrop-filter: blur(4px);
       display: none;
       align-items: center;
@@ -469,8 +467,8 @@
       background: var(--bg-surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      width: 580px;
-      max-width: 92vw;
+      width: 620px;
+      max-width: 94vw;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
       overflow: hidden;
       display: flex;
@@ -485,17 +483,15 @@
       align-items: center;
     }
 
-    .modal-header h3 {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-    }
+    .modal-header h3 { font-size: 13px; font-weight: 600; color: var(--text); }
 
     .modal-body {
       padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
+      max-height: 70vh;
+      overflow-y: auto;
     }
 
     .spec-textarea {
@@ -512,19 +508,29 @@
       outline: none;
     }
 
-    .spec-textarea:focus {
-      border-color: var(--border-focus);
-    }
+    .spec-textarea:focus { border-color: var(--border-focus); }
 
-    .analysis-card {
+    .question-card {
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 10px 12px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
+    }
+
+    .question-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .question-text {
       font-size: 12px;
+      color: var(--text);
     }
 
     .modal-footer {
@@ -568,7 +574,7 @@
       </div>
       <div class="worktree-list" id="wt-list">
         <div style="padding: 16px; text-align: center; color: var(--text-dim);">
-          No worktrees active.
+          No worktrees registered.
         </div>
       </div>
     </aside>
@@ -589,21 +595,30 @@
 
       <!-- Navigation Tabs -->
       <nav class="nav-tabs">
-        <button class="tab-link active" onclick="switchTab('spec')">Task Spec</button>
-        <button class="tab-link" onclick="switchTab('terminal')">Worker Output</button>
+        <button class="tab-link active" onclick="switchTab('spec')">Task Spec (.schwi-task.md)</button>
+        <button class="tab-link" onclick="switchTab('terminal')">
+          <span id="live-dot" class="status-dot" style="color: var(--text-dim);"></span>
+          <span>Realtime Agent View</span>
+        </button>
         <button class="tab-link" onclick="switchTab('diff')">Git Diff</button>
         <div style="margin-left: auto;" id="tab-actions">
           <button class="btn btn-sm" id="btn-save-spec" onclick="saveSpec()">Save Spec</button>
         </div>
       </nav>
 
-      <!-- Tab Content Area -->
+      <!-- Content Area -->
       <div class="content-area">
         <!-- Spec Tab -->
         <textarea id="tab-spec" class="editor-pane" placeholder="Task specification..."></textarea>
 
-        <!-- Terminal Tab -->
-        <div id="tab-terminal" class="terminal-pane" style="display: none;"></div>
+        <!-- Realtime Terminal Tab -->
+        <div id="tab-terminal" class="terminal-container" style="display: none;">
+          <div class="terminal-header">
+            <span id="terminal-target">worker: idle</span>
+            <span id="terminal-stream-status">STREAM: LIVE</span>
+          </div>
+          <div id="terminal-screen" class="terminal-screen">Waiting for worker output stream...</div>
+        </div>
 
         <!-- Diff Tab -->
         <div id="tab-diff" class="diff-container" style="display: none;"></div>
@@ -611,19 +626,26 @@
 
       <!-- Action Footer -->
       <footer class="action-bar" id="action-bar">
-        <!-- Staged State Controls -->
-        <div id="spawn-controls" style="display: flex; gap: 8px; width: 100%; align-items: center;">
-          <select id="agent-select" class="select-field">
-            <option value="kilo">Kilo (Localized)</option>
-            <option value="agy">Antigravity (Architecture)</option>
-          </select>
-          <input type="text" id="spawn-prompt" class="input-field" placeholder="Execution instructions for agent..." value="Execute task in .schwi-task.md and run validation tests">
-          <button class="btn btn-primary" onclick="triggerSpawn()">Spawn Worker</button>
+        <!-- Staged State Controls: Spec Revision & Spawning -->
+        <div id="spawn-controls" style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+          <!-- Pre-spawn Natural Language Spec Refinement -->
+          <div class="action-row">
+            <input type="text" id="spec-revision-prompt" class="input-field" placeholder="Prompt spec revision (e.g. 'Add Redis cache support', 'Include unit tests for auth error cases')...">
+            <button class="btn btn-sm" onclick="refineCurrentSpec()">Refine Spec</button>
+          </div>
+          <div class="action-row">
+            <select id="agent-select" class="select-field">
+              <option value="agy">Antigravity (High-Complexity / Architect)</option>
+              <option value="kilo">Kilo (Localized / Component)</option>
+            </select>
+            <input type="text" id="spawn-prompt" class="input-field" placeholder="Worker initial instruction..." value="Execute task in .schwi-task.md and run verification tests">
+            <button class="btn btn-primary" onclick="triggerSpawn()">Spawn Worker</button>
+          </div>
         </div>
 
-        <!-- Review State Controls -->
-        <div id="prompt-controls" style="display: none; gap: 8px; width: 100%; align-items: center;">
-          <input type="text" id="revision-prompt" class="input-field" placeholder="Provide revision feedback or adjustments...">
+        <!-- Review / Active State Controls -->
+        <div id="prompt-controls" style="display: none;" class="action-row">
+          <input type="text" id="revision-prompt" class="input-field" placeholder="Provide revision feedback or adjustments for worker...">
           <button class="btn" onclick="triggerPrompt()">Send Feedback</button>
           <button class="btn btn-danger" onclick="triggerDiscard()">Discard</button>
           <button class="btn btn-primary" onclick="triggerIntegrate()">Integrate</button>
@@ -632,57 +654,71 @@
     </main>
   </div>
 
-  <!-- Command Modal: Requirement Discovery -->
+  <!-- Interactive 3-Phase Discovery Modal -->
   <div class="modal-backdrop" id="create-modal">
     <div class="modal-window">
-      <!-- Step 1: Prompt Input -->
-      <div id="modal-step-1">
+      <!-- Phase 1: Natural Language Prompt -->
+      <div id="modal-phase-1">
         <div class="modal-header">
           <h3>Create Swarm Task</h3>
           <button class="btn btn-sm" onclick="closeCreateModal()">esc</button>
         </div>
         <div class="modal-body">
           <label style="font-size: 11px; color: var(--text-muted);">What do you want to build or modify?</label>
-          <textarea id="modal-prompt" class="spec-textarea" style="height: 120px;" placeholder="e.g. Implement Google OAuth2 authentication callback in api/auth.py, store sessions in Redis, and add unit tests..."></textarea>
+          <textarea id="modal-prompt" class="spec-textarea" style="height: 130px;" placeholder="e.g. Implement Google OAuth2 authentication callback, store user session in Redis, and add unit tests with mock tokens..."></textarea>
         </div>
         <div class="modal-footer" style="justify-content: flex-end; gap: 8px;">
           <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
-          <button class="btn btn-sm btn-primary" id="btn-analyze" onclick="analyzeAndProceed()">Analyze & Generate Spec</button>
+          <button class="btn btn-sm btn-primary" id="btn-analyze" onclick="startDiscoveryAnalysis()">Analyze & Generate Questions →</button>
         </div>
       </div>
 
-      <!-- Step 2: Spec Confirmation -->
-      <div id="modal-step-2" style="display: none;">
+      <!-- Phase 2: Clarifying Questions -->
+      <div id="modal-phase-2" style="display: none;">
         <div class="modal-header">
-          <h3>Task Specification & Routing</h3>
+          <h3>Requirement Clarification</h3>
           <span id="modal-complexity-tag" class="badge">Antigravity</span>
         </div>
-        <div class="modal-body">
-          <div class="analysis-card">
-            <span id="modal-analysis-reason" style="color: var(--text-muted); font-size: 11px;"></span>
+        <div class="modal-body" id="modal-questions-container">
+          <!-- Dynamically inserted question cards -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sm" onclick="backToPhase1()">Back</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
+            <button class="btn btn-sm btn-primary" id="btn-generate-spec" onclick="synthesizeSpecFromQuestions()">Synthesize Task Spec →</button>
           </div>
+        </div>
+      </div>
 
+      <!-- Phase 3: Final Spec Review & Staging -->
+      <div id="modal-phase-3" style="display: none;">
+        <div class="modal-header">
+          <h3>Review Task Spec & Create Worktree</h3>
+          <span id="modal-phase3-agent" class="badge">agy</span>
+        </div>
+        <div class="modal-body">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <div>
-              <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Worktree</label>
+              <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Worktree Identifier</label>
               <input type="text" id="modal-name" class="input-field" style="width: 100%; margin-top: 4px;">
             </div>
             <div>
-              <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Branch</label>
+              <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Git Branch</label>
               <input type="text" id="modal-branch" class="input-field" style="width: 100%; margin-top: 4px;">
             </div>
           </div>
 
           <div>
-            <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Specification (.schwi-task.md)</label>
-            <textarea id="modal-spec" class="spec-textarea" style="height: 160px; margin-top: 4px;"></textarea>
+            <label style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Synthesized Specification (.schwi-task.md)</label>
+            <textarea id="modal-spec" class="spec-textarea" style="height: 180px; margin-top: 4px;"></textarea>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-sm" onclick="backToStep1()">Back</button>
+          <button class="btn btn-sm" onclick="backToPhase2()">Back to Questions</button>
           <div style="display: flex; gap: 8px;">
             <button class="btn btn-sm" onclick="closeCreateModal()">Cancel</button>
-            <button class="btn btn-sm btn-primary" id="btn-create-wt" onclick="submitCreateWorktree()">Create Worktree</button>
+            <button class="btn btn-sm btn-primary" id="btn-create-wt" onclick="submitCreateWorktree()">Create Worktree & Stage Spec</button>
           </div>
         </div>
       </div>
@@ -694,6 +730,35 @@
     let isVps = false;
     let currentWt = null;
     let currentTab = 'spec';
+    let discoveryState = {};
+    let terminalPollTimer = null;
+    let userScrolledTerminal = false;
+
+    // ANSI Color Escape Code Parser
+    function ansiToHtml(text) {
+      if (!text) return '';
+      let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Strip cursor movement / reset artifacts
+      html = html.replace(/\x1b\[[0-9;]*[HfABCDsuJKnhilmpqr]/g, '');
+
+      // Colors
+      html = html
+        .replace(/\x1b\[0m/g, '</span>')
+        .replace(/\x1b\[1m/g, '<span style="font-weight:bold; color:#fff;">')
+        .replace(/\x1b\[31m/g, '<span style="color:#f87171;">')
+        .replace(/\x1b\[32m/g, '<span style="color:#4ade80;">')
+        .replace(/\x1b\[33m/g, '<span style="color:#fbbf24;">')
+        .replace(/\x1b\[34m/g, '<span style="color:#60a5fa;">')
+        .replace(/\x1b\[35m/g, '<span style="color:#c084fc;">')
+        .replace(/\x1b\[36m/g, '<span style="color:#38bdf8;">')
+        .replace(/\x1b\[90m/g, '<span style="color:#71717a;">');
+
+      return html;
+    }
 
     function connectEvents() {
       const evtSource = new EventSource('/api/events');
@@ -705,7 +770,9 @@
             isVps = msg.is_vps ?? false;
             renderAll();
           } else if (msg.type === 'log') {
-            appendLog(msg.data.text);
+            if (msg.data && msg.data.wt === currentWt) {
+              updateTerminalView(msg.data.text);
+            }
           }
         } catch (err) {}
       };
@@ -794,6 +861,18 @@
       if (!currentWt || !registry[currentWt]) return;
       const wt = registry[currentWt];
       const isReview = wt.status === 'READY_FOR_REVIEW';
+      const isWorking = wt.status === 'WORKING';
+
+      const liveDot = document.getElementById('live-dot');
+      if (isWorking) {
+        liveDot.style.color = 'var(--status-working)';
+        liveDot.classList.add('dot-pulse');
+        document.getElementById('terminal-stream-status').textContent = 'STREAM: ACTIVE';
+      } else {
+        liveDot.style.color = 'var(--text-dim)';
+        liveDot.classList.remove('dot-pulse');
+        document.getElementById('terminal-stream-status').textContent = 'STREAM: IDLE';
+      }
 
       const reviewBar = document.getElementById('review-bar');
       if (isReview) {
@@ -811,6 +890,7 @@
       if (wt.status === 'STAGED') {
         spawnControls.style.display = 'flex';
         promptControls.style.display = 'none';
+        if (wt.agent) document.getElementById('agent-select').value = wt.agent;
       } else {
         spawnControls.style.display = 'none';
         promptControls.style.display = 'flex';
@@ -823,12 +903,16 @@
         b.classList.toggle('active', (i === 0 && tab === 'spec') || (i === 1 && tab === 'terminal') || (i === 2 && tab === 'diff'));
       });
       document.getElementById('tab-spec').style.display = tab === 'spec' ? 'block' : 'none';
-      document.getElementById('tab-terminal').style.display = tab === 'terminal' ? 'block' : 'none';
+      document.getElementById('tab-terminal').style.display = tab === 'terminal' ? 'flex' : 'none';
       document.getElementById('tab-diff').style.display = tab === 'diff' ? 'block' : 'none';
       document.getElementById('btn-save-spec').style.display = tab === 'spec' ? 'inline-flex' : 'none';
 
+      clearInterval(terminalPollTimer);
       if (tab === 'spec') loadSpec();
-      if (tab === 'terminal') loadOutput();
+      if (tab === 'terminal') {
+        loadOutput();
+        startTerminalPolling();
+      }
       if (tab === 'diff') loadDiff();
     }
 
@@ -854,6 +938,30 @@
       setTimeout(() => btn.textContent = 'Save Spec', 1500);
     }
 
+    // Natural Language Spec Revision (Pre-Spawn)
+    async function refineCurrentSpec() {
+      if (!currentWt) return;
+      const revision = document.getElementById('spec-revision-prompt').value.trim();
+      if (!revision) return alert('Enter a revision prompt for the task spec.');
+
+      const currentSpec = document.getElementById('tab-spec').value;
+      try {
+        const res = await fetch('/api/refine-spec', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ spec: currentSpec, revision }),
+        });
+        const data = await res.json();
+        if (data.spec) {
+          document.getElementById('tab-spec').value = data.spec;
+          await saveSpec();
+          document.getElementById('spec-revision-prompt').value = '';
+        }
+      } catch (err) {
+        alert('Failed to refine spec: ' + err.message);
+      }
+    }
+
     async function loadDiff() {
       if (!currentWt) return;
       const diffContainer = document.getElementById('tab-diff');
@@ -869,7 +977,7 @@
     function renderDiff(rawDiff) {
       const container = document.getElementById('tab-diff');
       if (!rawDiff || !rawDiff.trim()) {
-        container.innerHTML = '<div style="color: var(--text-dim); padding: 10px 0;">No working changes detected against base branch.</div>';
+        container.innerHTML = '<div style="color: var(--text-dim); padding: 10px 0;">No changes detected against base branch.</div>';
         return;
       }
 
@@ -892,23 +1000,40 @@
       container.innerHTML = html;
     }
 
+    // Realtime Terminal Output
     async function loadOutput() {
       if (!currentWt) return;
-      const term = document.getElementById('tab-terminal');
+      document.getElementById('terminal-target').textContent = `worker: ${currentWt}`;
       try {
         const res = await fetch(`/api/worktrees/${currentWt}/output`);
         const data = await res.json();
-        term.textContent = data.output || 'No output recorded.';
+        updateTerminalView(data.output || 'No output buffer recorded for this worker.');
       } catch (err) {
-        term.textContent = 'Worker process is currently inactive.';
+        updateTerminalView('Worker process is currently inactive.');
       }
     }
 
-    function appendLog(text) {
-      const term = document.getElementById('tab-terminal');
-      term.textContent += text;
-      term.scrollTop = term.scrollHeight;
+    function updateTerminalView(rawText) {
+      const screen = document.getElementById('terminal-screen');
+      screen.innerHTML = ansiToHtml(rawText);
+      if (!userScrolledTerminal) {
+        screen.scrollTop = screen.scrollHeight;
+      }
     }
+
+    function startTerminalPolling() {
+      terminalPollTimer = setInterval(() => {
+        if (currentTab === 'terminal' && currentWt && registry[currentWt]?.status === 'WORKING') {
+          loadOutput();
+        }
+      }, 700);
+    }
+
+    // User scroll detection on terminal
+    document.getElementById('terminal-screen').addEventListener('scroll', (e) => {
+      const el = e.target;
+      userScrolledTerminal = (el.scrollHeight - el.scrollTop - el.clientHeight) > 40;
+    });
 
     function copyBannerCmd() {
       const text = document.getElementById('banner-cmd').textContent;
@@ -971,10 +1096,10 @@
       renderAll();
     };
 
-    // Modal
+    // --- Interactive 3-Phase Discovery Modal Logic ---
     function openCreateModal() {
       document.getElementById('create-modal').style.display = 'flex';
-      backToStep1();
+      backToPhase1();
       document.getElementById('modal-prompt').value = '';
       setTimeout(() => document.getElementById('modal-prompt').focus(), 50);
     }
@@ -983,19 +1108,27 @@
       document.getElementById('create-modal').style.display = 'none';
     }
 
-    function backToStep1() {
-      document.getElementById('modal-step-1').style.display = 'block';
-      document.getElementById('modal-step-2').style.display = 'none';
+    function backToPhase1() {
+      document.getElementById('modal-phase-1').style.display = 'block';
+      document.getElementById('modal-phase-2').style.display = 'none';
+      document.getElementById('modal-phase-3').style.display = 'none';
       const btn = document.getElementById('btn-analyze');
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'Analyze & Generate Spec';
+        btn.textContent = 'Analyze & Generate Questions →';
       }
     }
 
-    async function analyzeAndProceed() {
+    function backToPhase2() {
+      document.getElementById('modal-phase-1').style.display = 'none';
+      document.getElementById('modal-phase-2').style.display = 'block';
+      document.getElementById('modal-phase-3').style.display = 'none';
+    }
+
+    // Phase 1 -> Phase 2 (Generate Questions)
+    async function startDiscoveryAnalysis() {
       const prompt = document.getElementById('modal-prompt').value.trim();
-      if (!prompt) return alert('Please enter a description for the task.');
+      if (!prompt) return alert('Please enter a description for what you want to build.');
 
       const btn = document.getElementById('btn-analyze');
       btn.disabled = true;
@@ -1010,22 +1143,80 @@
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        const a = data.analysis;
-        document.getElementById('modal-name').value = a.name;
-        document.getElementById('modal-branch').value = a.branch;
-        document.getElementById('modal-spec').value = a.spec;
-        document.getElementById('modal-analysis-reason').textContent = a.reason;
-        document.getElementById('modal-complexity-tag').textContent = a.agent === 'agy' ? 'Antigravity (Heavy)' : 'Kilo (Fast)';
+        discoveryState = data.analysis;
+        discoveryState.initialPrompt = prompt;
 
-        document.getElementById('modal-step-1').style.display = 'none';
-        document.getElementById('modal-step-2').style.display = 'block';
+        document.getElementById('modal-complexity-tag').textContent = discoveryState.agent === 'agy'
+          ? 'Antigravity (High-Complexity)'
+          : 'Kilo (Fast / Localized)';
+
+        // Render dynamic question cards
+        const container = document.getElementById('modal-questions-container');
+        let html = '';
+        discoveryState.questions.forEach((q, idx) => {
+          html += `
+            <div class="question-card">
+              <span class="question-label">Question ${idx + 1}: ${q.label}</span>
+              <p class="question-text">${q.question}</p>
+              <input type="text" id="q-ans-${q.id}" class="input-field" value="${q.default}">
+            </div>
+          `;
+        });
+        container.innerHTML = html;
+
+        document.getElementById('modal-phase-1').style.display = 'none';
+        document.getElementById('modal-phase-2').style.display = 'block';
       } catch (err) {
-        alert('Analysis error: ' + err.message);
+        alert('Discovery error: ' + err.message);
         btn.disabled = false;
-        btn.textContent = 'Analyze & Generate Spec';
+        btn.textContent = 'Analyze & Generate Questions →';
       }
     }
 
+    // Phase 2 -> Phase 3 (Synthesize Spec)
+    async function synthesizeSpecFromQuestions() {
+      const btn = document.getElementById('btn-generate-spec');
+      btn.disabled = true;
+      btn.textContent = 'Synthesizing specification...';
+
+      const answers = {};
+      discoveryState.questions.forEach(q => {
+        const val = document.getElementById(`q-ans-${q.id}`)?.value || q.default;
+        answers[q.id] = val;
+      });
+
+      try {
+        const res = await fetch('/api/generate-spec', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: discoveryState.initialPrompt,
+            name: discoveryState.name,
+            branch: discoveryState.branch,
+            agent: discoveryState.agent,
+            complexity: discoveryState.complexity,
+            answers,
+          }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        document.getElementById('modal-name').value = discoveryState.name;
+        document.getElementById('modal-branch').value = discoveryState.branch;
+        document.getElementById('modal-spec').value = data.spec;
+        document.getElementById('modal-phase3-agent').textContent = discoveryState.agent;
+
+        document.getElementById('modal-phase-2').style.display = 'none';
+        document.getElementById('modal-phase-3').style.display = 'block';
+      } catch (err) {
+        alert('Synthesis error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Synthesize Task Spec →';
+      }
+    }
+
+    // Phase 3: Submit Worktree Creation
     async function submitCreateWorktree() {
       const name = document.getElementById('modal-name').value.trim();
       const branch = document.getElementById('modal-branch').value.trim();
@@ -1034,7 +1225,7 @@
 
       const btn = document.getElementById('btn-create-wt');
       btn.disabled = true;
-      btn.textContent = 'Creating...';
+      btn.textContent = 'Creating worktree...';
 
       try {
         const res = await fetch('/api/worktrees/create', {
@@ -1048,11 +1239,12 @@
         closeCreateModal();
         currentWt = name;
         renderAll();
+        switchTab('spec');
       } catch (err) {
         alert('Failed to create worktree: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Create Worktree';
+        btn.textContent = 'Create Worktree & Stage Spec';
       }
     }
 

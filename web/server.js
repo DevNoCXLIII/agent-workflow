@@ -273,18 +273,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-function analyzeTaskPrompt(prompt) {
+function analyzeTaskQuestions(prompt) {
   if (!prompt || typeof prompt !== 'string') {
     throw new Error('Prompt is required');
   }
 
   const raw = prompt.trim();
-  // Extract words for slug
+  const lower = raw.toLowerCase();
+
+  // Extract clean words for slug
   const cleanWords = raw
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, ' ')
     .split(/\s+/)
-    .filter((w) => !['a', 'an', 'the', 'to', 'for', 'in', 'on', 'with', 'and', 'or', 'of', 'please', 'i', 'want', 'make', 'add', 'create', 'let', 'us'].includes(w) && w.length > 1);
+    .filter((w) => !['a', 'an', 'the', 'to', 'for', 'in', 'on', 'with', 'and', 'or', 'of', 'please', 'i', 'want', 'make', 'add', 'create', 'let', 'us', 'we'].includes(w) && w.length > 1);
 
   const slug = cleanWords.slice(0, 4).join('-') || 'feature-task';
   const wtName = `wt-${slug}`;
@@ -294,46 +296,65 @@ function analyzeTaskPrompt(prompt) {
   const heavyKeywords = [
     'migrate', 'migration', 'refactor', 'architecture', 'database', 'schema',
     'orm', 'prisma', 'docker', 'cross-module', 'ast', 'rewrite', 'multi-file',
-    'backend', 'api', 'auth', 'oauth', 'jwt', 'security', 'fullstack', 'service'
+    'backend', 'api', 'auth', 'oauth', 'jwt', 'security', 'fullstack', 'service', 'redis'
   ];
 
-  const lowerRaw = raw.toLowerCase();
-  const matchedHeavy = heavyKeywords.filter((k) => lowerRaw.includes(k));
+  const matchedHeavy = heavyKeywords.filter((k) => lower.includes(k));
   const isHeavy = matchedHeavy.length > 0;
-
   const agent = isHeavy ? 'agy' : 'kilo';
   const complexity = isHeavy ? 'High Complexity' : 'Localized / Fast';
   const reason = isHeavy
-    ? `Task touches system-level aspects (${matchedHeavy.join(', ')}). Routed to Antigravity.`
+    ? `Task touches architectural aspects (${matchedHeavy.join(', ')}). Routed to Antigravity.`
     : 'Task is focused or component-level. Routed to Kilo for rapid turnaround.';
 
-  const nowIso = new Date().toISOString();
-  const sentences = raw.split(/[.\n;]+/).map((s) => s.trim()).filter((s) => s.length > 3);
+  const questions = [];
 
-  const objectives = sentences.length > 0
-    ? sentences.map((s) => `- ${s[0].toUpperCase() + s.slice(1)}`).join('\n')
-    : `- Implement requirements for ${raw}`;
+  // Question 1: Scope & Boundaries
+  if (lower.includes('auth') || lower.includes('oauth') || lower.includes('jwt') || lower.includes('login')) {
+    questions.push({
+      id: 'scope',
+      label: 'Authentication & Session Flow',
+      question: 'Which authentication methods, token stores, or session lifetimes should be supported?',
+      default: 'OAuth2 with secure HTTP-only cookies and Redis token store',
+    });
+  } else if (lower.includes('migrate') || lower.includes('migration') || lower.includes('db') || lower.includes('database') || lower.includes('schema') || lower.includes('orm') || lower.includes('prisma')) {
+    questions.push({
+      id: 'scope',
+      label: 'Database Schema & Migration Scope',
+      question: 'Should automatic migrations be generated, and what data structures or tables are affected?',
+      default: 'Generate migrations without destructive changes; maintain backward compatibility',
+    });
+  } else if (lower.includes('api') || lower.includes('endpoint') || lower.includes('backend') || lower.includes('route')) {
+    questions.push({
+      id: 'scope',
+      label: 'API Contract & Payload Validation',
+      question: 'What endpoints, request/response payloads, or validation rules should be defined?',
+      default: 'REST endpoints with strict schema validation and structured error responses',
+    });
+  } else {
+    questions.push({
+      id: 'scope',
+      label: 'Feature Scope & User Journeys',
+      question: 'What are the exact user flows, component interactions, or primary targets of this change?',
+      default: 'Implement core user flow with clean error boundaries and responsive layout',
+    });
+  }
 
-  const spec = `# Task: ${wtName}
+  // Question 2: Edge Cases & Error Handling
+  questions.push({
+    id: 'edge_cases',
+    label: 'Edge Cases & Blast Radius',
+    question: 'How should failure modes, network timeouts, invalid inputs, or fallback states be handled?',
+    default: 'Graceful degradation with informative error messages and logging',
+  });
 
-**Branch:** \`${branchName}\`
-**Created:** ${nowIso}
-**Complexity:** ${complexity} (\`${agent}\`)
-
-## 1. Objectives & Scope
-${objectives}
-
-## 2. Edge Cases & Blast Radius
-- Verify backward compatibility with existing modules and endpoints.
-- Ensure error states, null checks, and invalid inputs are handled cleanly.
-- Check environment variable requirements and configuration defaults.
-
-## 3. Acceptance Criteria
-- [ ] Core feature implementation complete and verified
-- [ ] Local tests, typechecks, or linters passing
-- [ ] No regression in existing functionality
-- [ ] Clean exit for Herdr lifecycle transition
-`;
+  // Question 3: Verification & Test Requirements
+  questions.push({
+    id: 'verification',
+    label: 'Testing & Verification Criteria',
+    question: 'What automated tests or verification checks must pass before integration?',
+    default: 'Unit/integration tests, linter and typecheck verification',
+  });
 
   return {
     name: wtName,
@@ -341,12 +362,60 @@ ${objectives}
     agent,
     complexity,
     reason,
-    spec,
-    summary: raw.length > 90 ? raw.slice(0, 87) + '...' : raw,
+    questions,
   };
 }
 
-// API: Requirement Analysis
+function synthesizeTaskSpec({ prompt, name, branch, agent, complexity, answers }) {
+  const nowIso = new Date().toISOString();
+  const rawAnswers = answers || {};
+
+  const scopeAns = rawAnswers.scope || 'Implement requirements according to specification';
+  const edgeAns = rawAnswers.edge_cases || 'Handle null checks, invalid inputs, and error states';
+  const verifyAns = rawAnswers.verification || 'Run unit tests and linters';
+
+  return `# Task: ${name}
+
+**Branch:** \`${branch}\`
+**Created:** ${nowIso}
+**Complexity:** ${complexity || 'High Complexity'} (\`${agent || 'agy'}\`)
+
+## 1. Objectives & Scope
+- **User Prompt:** ${prompt}
+- **Scope & Contract:** ${scopeAns}
+
+## 2. Edge Cases & Blast Radius
+- ${edgeAns}
+- Verify backward compatibility with existing modules and endpoints.
+- Ensure environment configuration and secrets are not leaked or hardcoded.
+
+## 3. Acceptance Criteria
+- [ ] Core functionality implemented according to scope
+- [ ] ${verifyAns}
+- [ ] No regression in existing functionality
+- [ ] Clean exit for Herdr lifecycle transition
+`;
+}
+
+function refineSpecContent(existingSpec, revisionPrompt) {
+  if (!existingSpec) return `# Task Revision\n\n## Revisions\n- ${revisionPrompt}`;
+  const nowIso = new Date().toISOString();
+  let updated = existingSpec;
+
+  if (updated.includes('## 1. Objectives & Scope')) {
+    updated = updated.replace('## 1. Objectives & Scope', `## 1. Objectives & Scope\n- **Revision (${nowIso.slice(11, 19)}):** ${revisionPrompt}`);
+  } else {
+    updated += `\n### Revision\n- ${revisionPrompt}\n`;
+  }
+
+  if (updated.includes('## 3. Acceptance Criteria')) {
+    updated = updated.replace('## 3. Acceptance Criteria', `## 3. Acceptance Criteria\n- [ ] ${revisionPrompt}`);
+  }
+
+  return updated;
+}
+
+// API: Requirement Discovery Analysis (Phase 1: Question Generation)
 if (pathname === '/api/analyze-task' && method === 'POST') {
   const { prompt } = body;
   if (!prompt || !prompt.trim()) {
@@ -355,9 +424,37 @@ if (pathname === '/api/analyze-task' && method === 'POST') {
     return;
   }
   try {
-    const analysis = analyzeTaskPrompt(prompt);
+    const analysis = analyzeTaskQuestions(prompt);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, analysis }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+  return;
+}
+
+// API: Synthesize Task Spec from Questions & Answers (Phase 2)
+if (pathname === '/api/generate-spec' && method === 'POST') {
+  const { prompt, name, branch, agent, complexity, answers } = body;
+  try {
+    const spec = synthesizeTaskSpec({ prompt, name, branch, agent, complexity, answers });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, spec }));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+  return;
+}
+
+// API: Refine Existing Spec
+if (pathname === '/api/refine-spec' && method === 'POST') {
+  const { spec, revision } = body;
+  try {
+    const refined = refineSpecContent(spec, revision);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, spec: refined }));
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: err.message }));
@@ -569,6 +666,28 @@ if (!bindHost) {
     bindHost = '127.0.0.1';
   }
 }
+
+// Active Terminal Stream Poller for Real-time view
+setInterval(() => {
+  try {
+    const reg = readRegistry();
+    for (const [wtName, item] of Object.entries(reg)) {
+      if (item && item.status === 'WORKING') {
+        const workerName = `schwi-${wtName}-worker`;
+        const paneId = item.pane_id || '';
+        try {
+          const out = execSync(
+            `herdr agent read "${workerName}" --source recent-unwrapped --lines 150 2>/dev/null || ( [ -n "${paneId}" ] && herdr pane read "${paneId}" 2>/dev/null ) || true`,
+            { encoding: 'utf8', timeout: 800 }
+          );
+          if (out) {
+            EVENT_BUS.emit('log', { wt: wtName, text: out, full: true });
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (err) {}
+}, 600);
 
 server.listen(bindPort, bindHost, () => {
   console.log('====================================================');
